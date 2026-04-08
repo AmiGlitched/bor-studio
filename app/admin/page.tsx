@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import SidebarProfile from '@/components/SidebarProfile'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ active: 0, awaitingClient: 0, revisions: 0, shootsThisWeek: 0, doneThisMonth: 0 })
@@ -118,9 +119,9 @@ export default function AdminDashboard() {
             </a>
           ))}
         </nav>
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #eee' }}>
-          <div style={{ fontSize: 12, color: '#bbb' }}>Fahad · Admin</div>
-        </div>
+        
+        {/* ADDED SIDEBAR PROFILE COMPONENT HERE */}
+        <SidebarProfile />
       </div>
 
       {/* Main */}
