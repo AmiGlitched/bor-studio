@@ -20,16 +20,16 @@ export default function Home() {
           BOR Studio
         </h1>
         <p style={{ fontSize: 14, color: '#888', marginBottom: 32 }}>
-          Choose your portal to continue
+          Sign in to continue to your portal
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <Link href="/admin" style={{
+          <Link href="/login?next=/admin" style={{
             padding: '10px 24px', background: '#111', color: '#fff',
             borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 500
           }}>
             Admin / Team
           </Link>
-          <Link href="/client" style={{
+          <Link href="/login?next=/client" style={{
             padding: '10px 24px', background: '#fff', color: '#111',
             borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 500,
             border: '1px solid #e0e0e0'
