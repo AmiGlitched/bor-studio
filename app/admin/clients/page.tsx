@@ -2,229 +2,201 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function Clients() {
-  const [clients, setClients] = useState<any[]>([])
+export default function ClientVideosPage() {
+  const [videos, setVideos] = useState<any[]>([])
+  const [client, setClient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<any>(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [filter, setFilter] = useState('all')
-  const [newClient, setNewClient] = useState({ 
-    name: '', instagram_handle: '', plan: 'IDS™ Foundation', 
-    videos_per_month: 8, posting_included: false, portal_mode: 'simple', monthly_fee: 5000,
-    social_handles: '', sop_link: '', raw_folder_link: '' 
-  })
+  
+  // Review Modal State
+  const [selectedVideo, setSelectedVideo] = useState<any>(null)
+  const [feedback, setFeedback] = useState('')
+  const [processing, setProcessing] = useState(false)
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    loadData()
+  }, [])
 
   async function loadData() {
     setLoading(true)
-    const { data } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
-    if (data) setClients(data)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Find the client's internal ID
+    const { data: profile } = await supabase.from('users').select('client_id').eq('auth_id', user.id).single()
+    
+    if (profile?.client_id) {
+      // Get package info
+      const { data: clientData } = await supabase.from('clients').select('*').eq('id', profile.client_id).single()
+      setClient(clientData)
+
+      // Get videos
+      const { data: videoData } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('client_id', profile.client_id)
+        .order('deadline', { ascending: true })
+      
+      if (videoData) setVideos(videoData)
+    }
     setLoading(false)
   }
 
-  async function updateClientField(clientId: string, field: string, value: string) {
-    await supabase.from('clients').update({ [field]: value }).eq('id', clientId)
-    setClients(clients.map(c => c.id === clientId ? { ...c, [field]: value } : c))
-    setSelected((prev: any) => prev ? { ...prev, [field]: value } : prev)
+  async function handleReviewSubmit(status: 'approved' | 'editing') {
+    if (status === 'editing' && !feedback.trim()) {
+      return alert("Please enter revision notes so the editor knows what to fix.")
+    }
+    
+    setProcessing(true)
+    await supabase.from('videos').update({ 
+      status: status, 
+      revision_note: status === 'editing' ? feedback : null
+    }).eq('id', selectedVideo.id)
+    
+    setProcessing(false)
+    setSelectedVideo(null)
+    setFeedback('')
+    loadData()
   }
 
-  async function addClient() {
-    if (!newClient.name) return
-    await supabase.from('clients').insert({
-      name: newClient.name,
-      instagram_handle: newClient.instagram_handle,
-      plan: newClient.plan,
-      videos_per_month: Number(newClient.videos_per_month),
-      posting_included: newClient.posting_included,
-      portal_mode: newClient.portal_mode,
-      social_handles: newClient.social_handles,
-      sop_link: newClient.sop_link,
-      raw_folder_link: newClient.raw_folder_link
-    })
-    setShowAdd(false)
-    await loadData()
-  }
-
-  const filtered = clients.filter(c => {
-    if (filter === 'posting') return c.posting_included
-    if (filter === 'detailed') return c.portal_mode === 'detailed'
-    return true
-  })
-
-  const totalMRR = clients.reduce((sum, c) => sum + (c.monthly_fee || 0), 0)
+  // Calculate KPIs
+  const approvedCount = videos.filter(v => v.status === 'approved').length
+  const inProgressCount = videos.filter(v => ['editing', 'internal_review'].includes(v.status)).length
+  const needsReviewCount = videos.filter(v => v.status === 'client_review').length
+  const packageTotal = client?.videos_per_month || 0
 
   return (
     <>
-      <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Clients</div>
-        <button onClick={() => setShowAdd(true)} style={{ fontSize: 12, padding: '6px 16px', background: '#111', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>+ Add client</button>
+      <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>My Videos</div>
       </div>
 
-      {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400, color: '#bbb', fontSize: 14 }}>Loading...</div>
-      ) : (
-        <div style={{ padding: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
-            {[
-              { label: 'Total clients', value: clients.length, sub: 'active accounts' },
-              { label: 'Monthly revenue', value: `AED ${totalMRR.toLocaleString()}`, sub: 'across all plans', color: '#27ae60' },
-              { label: 'Posting included', value: clients.filter(c => c.posting_included).length, sub: 'we post for them' },
-              { label: 'Detailed portal', value: clients.filter(c => c.portal_mode === 'detailed').length, sub: 'advanced view' },
-            ].map(s => (
-              <div key={s.label} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '12px 16px' }}>
-                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 600, color: s.color || '#111', lineHeight: 1 }}>{s.value}</div>
-                <div style={{ fontSize: 10, color: '#bbb', marginTop: 4 }}>{s.sub}</div>
+      <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', width: '100%' }}>
+        
+        {loading ? (
+          <div style={{ color: '#bbb', fontSize: 14, textAlign: 'center', marginTop: 40 }}>Loading your videos...</div>
+        ) : (
+          <>
+            {/* KPI Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 32 }}>
+              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>Package</div>
+                <div style={{ fontSize: 28, fontWeight: 600, color: '#111' }}>{packageTotal}</div>
+                <div style={{ fontSize: 11, color: '#bbb' }}>videos this month</div>
               </div>
-            ))}
-          </div>
+              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>Done</div>
+                <div style={{ fontSize: 28, fontWeight: 600, color: '#27ae60' }}>{approvedCount}</div>
+                <div style={{ fontSize: 11, color: '#bbb' }}>approved</div>
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>In Progress</div>
+                <div style={{ fontSize: 28, fontWeight: 600, color: '#111' }}>{inProgressCount}</div>
+                <div style={{ fontSize: 11, color: '#bbb' }}>being worked on</div>
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
+                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>Needs Review</div>
+                <div style={{ fontSize: 28, fontWeight: 600, color: '#8e44ad' }}>{needsReviewCount}</div>
+                <div style={{ fontSize: 11, color: '#bbb' }}>waiting for you</div>
+              </div>
+            </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            {[{ id: 'all', label: 'All clients' }, { id: 'posting', label: 'Posting included' }, { id: 'detailed', label: 'Detailed portal' }].map(f => (
-              <button key={f.id} onClick={() => setFilter(f.id)} style={{ padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: '1px solid #eee', background: filter === f.id ? '#111' : '#fff', color: filter === f.id ? '#fff' : '#888' }}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.map(client => (
-              <div key={client.id} onClick={() => setSelected(client)}
-                style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '14px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#111', flexShrink: 0 }}>
-                  {client.name[0]}
+            {/* Video List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {videos.length === 0 && (
+                <div style={{ textAlign: 'center', padding: 40, border: '1px dashed #ddd', borderRadius: 12, color: '#888', fontSize: 14 }}>
+                  No videos found for this month yet.
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 2 }}>{client.name}</div>
-                  <div style={{ fontSize: 11, color: '#999' }}>
-                    {client.plan} · {client.videos_per_month} videos/mo
-                    {client.posting_included && <span style={{ marginLeft: 8, color: '#27ae60' }}>· Posting included</span>}
+              )}
+
+              {videos.map(video => {
+                const isReady = video.status === 'client_review'
+                const isApproved = video.status === 'approved'
+                
+                return (
+                  <div key={video.id} style={{ background: '#fff', border: isReady ? '1px solid #8e44ad' : '1px solid #eee', borderLeft: isReady ? '3px solid #8e44ad' : isApproved ? '3px solid #27ae60' : '3px solid transparent', borderRadius: 12, padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ width: 48, height: 48, background: '#111', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: '10px solid #fff', marginLeft: 4 }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 4 }}>{video.title}</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>{video.type || 'reel'} · Due {video.deadline || 'TBD'}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                      {isReady && <span style={{ fontSize: 11, padding: '4px 10px', background: '#f5f3ff', color: '#8e44ad', borderRadius: 20, fontWeight: 500 }}>Ready for review</span>}
+                      {isApproved && <span style={{ fontSize: 11, padding: '4px 10px', background: '#f0fdf4', color: '#27ae60', borderRadius: 20, fontWeight: 500 }}>Approved</span>}
+                      {['editing', 'internal_review'].includes(video.status) && <span style={{ fontSize: 11, padding: '4px 10px', background: '#f5f5f5', color: '#666', borderRadius: 20, fontWeight: 500 }}>Being edited</span>}
+
+                      {isReady && (
+                        <button onClick={() => setSelectedVideo(video)} style={{ padding: '8px 24px', background: '#111', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                          Review
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#f0fdf4', color: '#27ae60' }}>Active</span>
-                  <span style={{ fontSize: 11, color: '#888' }}>{client.portal_mode} portal</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Client detail Modal */}
-      {selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 420, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 600, color: '#111' }}>
-                {selected.name[0]}
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: '#111' }}>{selected.name}</div>
-                <div style={{ fontSize: 12, color: '#999' }}>{selected.instagram_handle}</div>
-              </div>
+                )
+              })}
             </div>
+          </>
+        )}
+      </div>
+
+      {/* Client Review Modal */}
+      {selectedVideo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 900, display: 'flex', overflow: 'hidden', maxHeight: '90vh' }}>
             
-            {[
-              ['Plan', selected.plan],
-              ['Videos per month', selected.videos_per_month],
-              ['Posting included', selected.posting_included ? 'Yes' : 'No'],
-            ].map(([l, v]) => (
-              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5', fontSize: 13 }}>
-                <span style={{ color: '#888' }}>{l}</span>
-                <span style={{ color: '#111', fontWeight: 500 }}>{v}</span>
-              </div>
-            ))}
-
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>Portal mode</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {['simple', 'detailed'].map(mode => (
-                  <button key={mode} onClick={() => updateClientField(selected.id, 'portal_mode', mode)} style={{ flex: 1, padding: '8px', border: '1px solid #eee', borderRadius: 8, background: selected.portal_mode === mode ? '#111' : '#fff', color: selected.portal_mode === mode ? '#fff' : '#888', fontSize: 13, cursor: 'pointer', textTransform: 'capitalize' }}>
-                    {mode}
-                  </button>
-                ))}
-              </div>
+            {/* Video Player */}
+            <div style={{ flex: 2, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {selectedVideo.video_url ? (
+                <video src={selectedVideo.video_url} controls style={{ width: '100%', maxHeight: '90vh', outline: 'none' }} />
+              ) : (
+                <div style={{ color: '#fff' }}>No video file available.</div>
+              )}
             </div>
 
-            {/* LIVE ASSET LINKS MANAGEMENT */}
-            <div style={{ marginTop: 24, borderTop: '1px solid #eee', paddingTop: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 12 }}>Manage Assets (Auto-saves)</div>
-              
-              {[
-                { key: 'social_handles', label: 'Social Handles', placeholder: 'e.g. IG: @handle | TikTok: @handle' },
-                { key: 'sop_link', label: 'Google Doc SOP Link', placeholder: 'https://docs.google.com/...' },
-                { key: 'raw_folder_link', label: 'Google Drive Raw Folder', placeholder: 'https://drive.google.com/...' }
-              ].map(f => (
-                <div key={f.key} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{f.label}</div>
-                  <input 
-                    defaultValue={selected[f.key] || ''}
-                    onBlur={(e) => updateClientField(selected.id, f.key, e.target.value)}
-                    placeholder={f.placeholder}
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9f9f9' }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <a href={`/client/${selected.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, padding: '10px', textAlign: 'center', background: '#f5f5f5', borderRadius: 8, fontSize: 13, color: '#111', textDecoration: 'none', fontWeight: 500 }}>
-              View Client Portal ↗
-            </a>
-            <button onClick={() => setSelected(null)} style={{ width: '100%', marginTop: 8, padding: '10px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Close</button>
-          </div>
-        </div>
-      )}
-
-      {/* Add client modal */}
-      {showAdd && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 420, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 16 }}>Add client</div>
-            {[
-              { label: 'Full name', key: 'name', type: 'text', placeholder: 'e.g. Hamdan Al Mansoori' },
-              { label: 'Instagram handle', key: 'instagram_handle', type: 'text', placeholder: '@handle' },
-              { label: 'Videos per month', key: 'videos_per_month', type: 'number', placeholder: '8' },
-              { label: 'Social Handles', key: 'social_handles', type: 'text', placeholder: 'IG: @... | TikTok: @...' },
-              { label: 'SOP Link (Google Doc)', key: 'sop_link', type: 'text', placeholder: 'https://docs...' },
-              { label: 'Master Raw Folder (Drive)', key: 'raw_folder_link', type: 'text', placeholder: 'https://drive...' },
-            ].map(f => (
-              <div key={f.key} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{f.label}</div>
-                <input type={f.type} value={(newClient as any)[f.key]} onChange={e => setNewClient({ ...newClient, [f.key]: e.target.value })}
-                  placeholder={f.placeholder}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111', outline: 'none' }} />
+            {/* Feedback Sidebar */}
+            <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', background: '#f9f9f9', borderLeft: '1px solid #eee' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>Review Video</div>
+                <button onClick={() => { setSelectedVideo(null); setFeedback(''); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>
               </div>
-            ))}
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Plan</div>
-                <select value={newClient.plan} onChange={e => setNewClient({ ...newClient, plan: e.target.value })}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
-                  <option>IDS™ Foundation</option>
-                  <option>IDS™ Sustain</option>
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Portal mode</div>
-                <select value={newClient.portal_mode} onChange={e => setNewClient({ ...newClient, portal_mode: e.target.value })}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
-                  <option value="simple">Simple</option>
-                  <option value="detailed">Detailed</option>
-                </select>
-              </div>
-            </div>
 
-            <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input type="checkbox" id="posting" checked={newClient.posting_included} onChange={e => setNewClient({ ...newClient, posting_included: e.target.checked })} />
-              <label htmlFor="posting" style={{ fontSize: 13, color: '#111', cursor: 'pointer' }}>Posting included</label>
-            </div>
-            
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: '10px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={addClient} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: '#111', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Add client</button>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 4 }}>{selectedVideo.title}</div>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 32 }}>Please review the video and approve it, or request changes.</div>
+
+              <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #eee', marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Ready to post?</div>
+                <button 
+                  onClick={() => handleReviewSubmit('approved')}
+                  disabled={processing}
+                  style={{ width: '100%', padding: '10px', background: '#27ae60', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: processing ? 'default' : 'pointer' }}
+                >
+                  {processing ? 'Processing...' : 'Approve Video'}
+                </button>
+              </div>
+
+              <div style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginBottom: 24 }}>OR</div>
+
+              <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #eee', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Request Edits</div>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="What needs to be changed? Please be as specific as possible (e.g., 'At 0:15, remove the logo')."
+                  style={{ width: '100%', flex: 1, padding: 12, border: '1px solid #ddd', borderRadius: 8, fontSize: 13, resize: 'none', outline: 'none', marginBottom: 12, minHeight: 120 }}
+                />
+                <button 
+                  onClick={() => handleReviewSubmit('editing')}
+                  disabled={processing || !feedback.trim()}
+                  style={{ width: '100%', padding: '10px', background: feedback.trim() ? '#e74c3c' : '#ccc', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: (processing || !feedback.trim()) ? 'default' : 'pointer' }}
+                >
+                  {processing ? 'Processing...' : 'Send Back for Edits'}
+                </button>
+              </div>
+
             </div>
           </div>
         </div>
