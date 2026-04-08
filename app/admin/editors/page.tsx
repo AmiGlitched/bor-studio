@@ -24,14 +24,19 @@ export default function Editors() {
     setLoading(true)
     const { data: editorList } = await supabase.from('users').select('*').eq('role', 'editor')
     const { data: clientList } = await supabase.from('clients').select('*')
+    
     if (editorList) {
       const editorsWithTasks = await Promise.all(editorList.map(async e => {
+        // Fetch ALL tasks (both active and approved)
         const { data: tasks } = await supabase
           .from('videos')
           .select('*, clients(name), revisions(comment, resolved)')
           .eq('editor_id', e.id)
-          .neq('status', 'approved')
-        return { ...e, tasks: tasks || [] }
+        
+        const activeTasks = tasks?.filter(t => t.status !== 'approved') || []
+        const doneTasks = tasks?.filter(t => t.status === 'approved') || []
+
+        return { ...e, activeTasks, doneTasks }
       }))
       setEditors(editorsWithTasks)
       if (editorList.length > 0) setNewTask(t => ({ ...t, editorId: editorList[0].id }))
@@ -65,12 +70,9 @@ export default function Editors() {
   }
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', background: '#f5f5f5', minHeight: '100vh' }}>
+    <>
       <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <a href="/admin" style={{ fontSize: 13, color: '#888', textDecoration: 'none' }}>← Dashboard</a>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Editors</div>
-        </div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Editors Overview</div>
         <button onClick={() => setShowAssign(true)} style={{ fontSize: 12, padding: '6px 16px', background: '#111', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>+ Assign task</button>
       </div>
 
@@ -78,9 +80,10 @@ export default function Editors() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400, color: '#bbb', fontSize: 14 }}>Loading...</div>
       ) : (
         <div style={{ padding: 24 }}>
+          {/* Top KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 24 }}>
             {editors.map(editor => {
-              const load = getLoad(editor.tasks.length)
+              const load = getLoad(editor.activeTasks.length)
               return (
                 <div key={editor.id} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -89,7 +92,9 @@ export default function Editors() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{editor.name}</div>
-                      <div style={{ fontSize: 11, color: '#999' }}>{editor.tasks.length} active tasks</div>
+                      <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                        <strong>{editor.activeTasks.length}</strong> active · <strong>{editor.doneTasks.length}</strong> done
+                      </div>
                     </div>
                     <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: load.color + '18', color: load.color, fontWeight: 500 }}>{load.label}</span>
                   </div>
@@ -101,15 +106,16 @@ export default function Editors() {
             })}
           </div>
 
+          {/* Active Tasks Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
             {editors.map(editor => (
               <div key={editor.id}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#111', marginBottom: 10 }}>{editor.name}'s tasks</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#111', marginBottom: 10 }}>{editor.name}'s Active Tasks</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {editor.tasks.length === 0 && (
+                  {editor.activeTasks.length === 0 && (
                     <div style={{ fontSize: 13, color: '#bbb', padding: '20px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px solid #eee' }}>No active tasks</div>
                   )}
-                  {editor.tasks.map((task: any) => {
+                  {editor.activeTasks.map((task: any) => {
                     const sc = statusConfig[task.status] || statusConfig.editing
                     const isOverdue = task.deadline && new Date(task.deadline) < new Date()
                     const openRevision = task.revisions?.find((r: any) => !r.resolved)
@@ -126,11 +132,6 @@ export default function Editors() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                           <span style={{ color: isOverdue ? '#e74c3c' : '#bbb' }}>{isOverdue ? 'Overdue · ' : 'Due · '}{task.deadline || '—'}</span>
                         </div>
-                        {openRevision && (
-                          <div style={{ marginTop: 8, padding: '6px 10px', background: '#fff8f0', borderRadius: 6, fontSize: 11, color: '#e67e22' }}>
-                            Revision: {openRevision.comment}
-                          </div>
-                        )}
                       </div>
                     )
                   })}
@@ -208,6 +209,6 @@ export default function Editors() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
