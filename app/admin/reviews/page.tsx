@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function AdminReviewsPage() {
+export default function Page() {
   const [videos, setVideos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedVideo, setSelectedVideo] = useState<any>(null)
@@ -30,7 +30,7 @@ export default function AdminReviewsPage() {
     setProcessing(true)
     await supabase
       .from('videos')
-      .update({ status: 'client_review', revision_note: null }) // Exact snake_case
+      .update({ status: 'client_review', revision_note: null })
       .eq('id', id)
     
     setSelectedVideo(null)
@@ -43,7 +43,7 @@ export default function AdminReviewsPage() {
     setProcessing(true)
     await supabase
       .from('videos')
-      .update({ status: 'editing', revision_note: revisionNote, video_uploaded: false }) // Exact snake_case
+      .update({ status: 'editing', revision_note: revisionNote, video_uploaded: false })
       .eq('id', id)
     
     setRevisionNote('')
@@ -53,12 +53,12 @@ export default function AdminReviewsPage() {
   }
 
   return (
-    <>
+    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center' }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Needs Review</div>
       </div>
 
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: 24, flex: 1 }}>
         {loading ? (
           <div style={{ color: '#bbb', fontSize: 14 }}>Loading videos...</div>
         ) : videos.length === 0 ? (
@@ -156,6 +156,6 @@ export default function AdminReviewsPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }
