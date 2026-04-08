@@ -30,7 +30,7 @@ export default function AdminReviewsPage() {
     setProcessing(true)
     await supabase
       .from('videos')
-      .update({ status: 'client_review', revisionNote: null })
+      .update({ status: 'client_review', revision_note: null }) // Exact snake_case
       .eq('id', id)
     
     setSelectedVideo(null)
@@ -43,7 +43,7 @@ export default function AdminReviewsPage() {
     setProcessing(true)
     await supabase
       .from('videos')
-      .update({ status: 'editing', revisionNote: revisionNote, videoUploaded: false })
+      .update({ status: 'editing', revision_note: revisionNote, video_uploaded: false }) // Exact snake_case
       .eq('id', id)
     
     setRevisionNote('')
@@ -96,16 +96,16 @@ export default function AdminReviewsPage() {
             
             {/* Video Player Side */}
             <div style={{ flex: 2, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {selectedVideo.videoUrl ? (
+              {selectedVideo.video_url ? (
                 <video 
-                  src={selectedVideo.videoUrl} 
+                  src={selectedVideo.video_url} 
                   controls 
                   style={{ width: '100%', maxHeight: '90vh', outline: 'none' }}
                 />
               ) : (
                 <div style={{ color: '#fff', textAlign: 'center' }}>
                   <p style={{ marginBottom: 10 }}>Video file not uploaded directly.</p>
-                  <a href={selectedVideo.driveLink} target="_blank" rel="noreferrer" style={{ color: '#CCFF00' }}>Open External Link</a>
+                  <a href={selectedVideo.drive_link} target="_blank" rel="noreferrer" style={{ color: '#CCFF00' }}>Open External Link</a>
                 </div>
               )}
             </div>

@@ -2,33 +2,31 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-const paymentColors: Record<string, { bg: string, text: string, label: string }> = {
-  paid: { bg: '#f0fdf4', text: '#27ae60', label: 'Paid' },
-  overdue: { bg: '#fef2f2', text: '#e74c3c', label: 'Overdue' },
-  upcoming: { bg: '#fff8f0', text: '#e67e22', label: 'Due soon' },
-}
-
 export default function Clients() {
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<any>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [filter, setFilter] = useState('all')
-  const [newClient, setNewClient] = useState({ name: '', instagram_handle: '', plan: 'IDS™ Foundation', videos_per_month: 8, posting_included: false, portal_mode: 'simple', monthly_fee: 5000 })
+  const [newClient, setNewClient] = useState({ 
+    name: '', instagram_handle: '', plan: 'IDS™ Foundation', 
+    videos_per_month: 8, posting_included: false, portal_mode: 'simple', monthly_fee: 5000,
+    social_handles: '', sop_link: '', raw_folder_link: '' 
+  })
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
-    const { data } = await supabase.from('clients').select('*')
+    const { data } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
     if (data) setClients(data)
     setLoading(false)
   }
 
-  async function updatePortalMode(clientId: string, mode: string) {
-    await supabase.from('clients').update({ portal_mode: mode }).eq('id', clientId)
-    setClients(clients.map(c => c.id === clientId ? { ...c, portal_mode: mode } : c))
-    setSelected((prev: any) => prev ? { ...prev, portal_mode: mode } : prev)
+  async function updateClientField(clientId: string, field: string, value: string) {
+    await supabase.from('clients').update({ [field]: value }).eq('id', clientId)
+    setClients(clients.map(c => c.id === clientId ? { ...c, [field]: value } : c))
+    setSelected((prev: any) => prev ? { ...prev, [field]: value } : prev)
   }
 
   async function addClient() {
@@ -40,6 +38,9 @@ export default function Clients() {
       videos_per_month: Number(newClient.videos_per_month),
       posting_included: newClient.posting_included,
       portal_mode: newClient.portal_mode,
+      social_handles: newClient.social_handles,
+      sop_link: newClient.sop_link,
+      raw_folder_link: newClient.raw_folder_link
     })
     setShowAdd(false)
     await loadData()
@@ -54,12 +55,9 @@ export default function Clients() {
   const totalMRR = clients.reduce((sum, c) => sum + (c.monthly_fee || 0), 0)
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', background: '#f5f5f5', minHeight: '100vh' }}>
+    <>
       <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <a href="/admin" style={{ fontSize: 13, color: '#888', textDecoration: 'none' }}>← Dashboard</a>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Clients</div>
-        </div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Clients</div>
         <button onClick={() => setShowAdd(true)} style={{ fontSize: 12, padding: '6px 16px', background: '#111', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>+ Add client</button>
       </div>
 
@@ -114,10 +112,10 @@ export default function Clients() {
         </div>
       )}
 
-      {/* Client detail */}
+      {/* Client detail Modal */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 400, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 420, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 600, color: '#111' }}>
                 {selected.name[0]}
@@ -127,44 +125,70 @@ export default function Clients() {
                 <div style={{ fontSize: 12, color: '#999' }}>{selected.instagram_handle}</div>
               </div>
             </div>
+            
             {[
               ['Plan', selected.plan],
               ['Videos per month', selected.videos_per_month],
               ['Posting included', selected.posting_included ? 'Yes' : 'No'],
-              ['Portal mode', selected.portal_mode],
             ].map(([l, v]) => (
               <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5', fontSize: 13 }}>
                 <span style={{ color: '#888' }}>{l}</span>
                 <span style={{ color: '#111', fontWeight: 500 }}>{v}</span>
               </div>
             ))}
+
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>Portal mode</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {['simple', 'detailed'].map(mode => (
-                  <button key={mode} onClick={() => updatePortalMode(selected.id, mode)} style={{ flex: 1, padding: '8px', border: '1px solid #eee', borderRadius: 8, background: selected.portal_mode === mode ? '#111' : '#fff', color: selected.portal_mode === mode ? '#fff' : '#888', fontSize: 13, cursor: 'pointer', textTransform: 'capitalize' }}>
+                  <button key={mode} onClick={() => updateClientField(selected.id, 'portal_mode', mode)} style={{ flex: 1, padding: '8px', border: '1px solid #eee', borderRadius: 8, background: selected.portal_mode === mode ? '#111' : '#fff', color: selected.portal_mode === mode ? '#fff' : '#888', fontSize: 13, cursor: 'pointer', textTransform: 'capitalize' }}>
                     {mode}
                   </button>
                 ))}
               </div>
             </div>
-            <a href={`/client/${selected.id}`} style={{ display: 'block', marginTop: 14, padding: '9px', textAlign: 'center', background: '#f5f5f5', borderRadius: 8, fontSize: 13, color: '#111', textDecoration: 'none' }}>
-              View client portal →
+
+            {/* LIVE ASSET LINKS MANAGEMENT */}
+            <div style={{ marginTop: 24, borderTop: '1px solid #eee', paddingTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 12 }}>Manage Assets (Auto-saves)</div>
+              
+              {[
+                { key: 'social_handles', label: 'Social Handles', placeholder: 'e.g. IG: @handle | TikTok: @handle' },
+                { key: 'sop_link', label: 'Google Doc SOP Link', placeholder: 'https://docs.google.com/...' },
+                { key: 'raw_folder_link', label: 'Google Drive Raw Folder', placeholder: 'https://drive.google.com/...' }
+              ].map(f => (
+                <div key={f.key} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{f.label}</div>
+                  <input 
+                    defaultValue={selected[f.key] || ''}
+                    onBlur={(e) => updateClientField(selected.id, f.key, e.target.value)}
+                    placeholder={f.placeholder}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9f9f9' }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <a href={`/client/${selected.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, padding: '10px', textAlign: 'center', background: '#f5f5f5', borderRadius: 8, fontSize: 13, color: '#111', textDecoration: 'none', fontWeight: 500 }}>
+              View Client Portal ↗
             </a>
-            <button onClick={() => setSelected(null)} style={{ width: '100%', marginTop: 8, padding: '8px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer' }}>Close</button>
+            <button onClick={() => setSelected(null)} style={{ width: '100%', marginTop: 8, padding: '10px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Close</button>
           </div>
         </div>
       )}
 
       {/* Add client modal */}
       {showAdd && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 380 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 420, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 16 }}>Add client</div>
             {[
               { label: 'Full name', key: 'name', type: 'text', placeholder: 'e.g. Hamdan Al Mansoori' },
               { label: 'Instagram handle', key: 'instagram_handle', type: 'text', placeholder: '@handle' },
               { label: 'Videos per month', key: 'videos_per_month', type: 'number', placeholder: '8' },
+              { label: 'Social Handles', key: 'social_handles', type: 'text', placeholder: 'IG: @... | TikTok: @...' },
+              { label: 'SOP Link (Google Doc)', key: 'sop_link', type: 'text', placeholder: 'https://docs...' },
+              { label: 'Master Raw Folder (Drive)', key: 'raw_folder_link', type: 'text', placeholder: 'https://drive...' },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{f.label}</div>
@@ -173,33 +197,38 @@ export default function Clients() {
                   style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111', outline: 'none' }} />
               </div>
             ))}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Plan</div>
-              <select value={newClient.plan} onChange={e => setNewClient({ ...newClient, plan: e.target.value })}
-                style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
-                <option>IDS™ Foundation</option>
-                <option>IDS™ Sustain</option>
-              </select>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Plan</div>
+                <select value={newClient.plan} onChange={e => setNewClient({ ...newClient, plan: e.target.value })}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
+                  <option>IDS™ Foundation</option>
+                  <option>IDS™ Sustain</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Portal mode</div>
+                <select value={newClient.portal_mode} onChange={e => setNewClient({ ...newClient, portal_mode: e.target.value })}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
+                  <option value="simple">Simple</option>
+                  <option value="detailed">Detailed</option>
+                </select>
+              </div>
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Portal mode</div>
-              <select value={newClient.portal_mode} onChange={e => setNewClient({ ...newClient, portal_mode: e.target.value })}
-                style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
-                <option value="simple">Simple</option>
-                <option value="detailed">Detailed</option>
-              </select>
-            </div>
+
             <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="checkbox" id="posting" checked={newClient.posting_included} onChange={e => setNewClient({ ...newClient, posting_included: e.target.checked })} />
               <label htmlFor="posting" style={{ fontSize: 13, color: '#111', cursor: 'pointer' }}>Posting included</label>
             </div>
+            
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: '8px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={addClient} style={{ flex: 1, padding: '8px', border: 'none', borderRadius: 8, background: '#111', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Add client</button>
+              <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: '10px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={addClient} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: '#111', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Add client</button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
