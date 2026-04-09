@@ -2,12 +2,13 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-const statusConfig: Record<string, { label: string, bg: string, text: string }> = {
-  editing: { label: 'Editing', bg: '#fff8f0', text: '#e67e22' },
-  internal_review: { label: 'Internal review', bg: '#eff6ff', text: '#2980b9' },
-  client_review: { label: 'With client', bg: '#f5f3ff', text: '#8e44ad' },
-  approved: { label: 'Approved', bg: '#f0fdf4', text: '#27ae60' },
-  shoot_done: { label: 'Shoot done', bg: '#f5f5f5', text: '#888' },
+// Upgraded Brand Status Colors
+const statusConfig: Record<string, { label: string, bg: string, text: string, border: string }> = {
+  editing: { label: 'Editing', bg: 'rgba(232, 67, 147, 0.1)', text: '#E84393', border: '#E84393' },
+  internal_review: { label: 'Internal Review', bg: 'rgba(74, 144, 226, 0.1)', text: '#4A90E2', border: '#4A90E2' },
+  client_review: { label: 'With Client', bg: 'rgba(123, 97, 255, 0.1)', text: '#7B61FF', border: '#7B61FF' },
+  approved: { label: 'Approved', bg: 'rgba(0, 208, 132, 0.1)', text: '#00D084', border: '#00D084' },
+  shoot_done: { label: 'Shoot Done', bg: 'rgba(136, 136, 136, 0.1)', text: '#a0a0b0', border: '#888' },
 }
 
 export default function Editors() {
@@ -27,7 +28,6 @@ export default function Editors() {
     
     if (editorList) {
       const editorsWithTasks = await Promise.all(editorList.map(async e => {
-        // Fetch ALL tasks (both active and approved)
         const { data: tasks } = await supabase
           .from('videos')
           .select('*, clients(name), revisions(comment, resolved)')
@@ -64,42 +64,83 @@ export default function Editors() {
   }
 
   function getLoad(count: number) {
-    if (count <= 4) return { label: 'Good', color: '#27ae60', width: Math.round((count / 8) * 100) }
-    if (count <= 6) return { label: 'Busy', color: '#e67e22', width: Math.round((count / 8) * 100) }
-    return { label: 'At capacity', color: '#e74c3c', width: 100 }
+    if (count <= 4) return { label: 'Optimal', color: '#00D084', width: Math.round((count / 8) * 100) }
+    if (count <= 6) return { label: 'Heavy', color: '#F5A623', width: Math.round((count / 8) * 100) }
+    return { label: 'Overloaded', color: '#E84393', width: 100 }
   }
 
   return (
     <>
-      <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Editors Overview</div>
-        <button onClick={() => setShowAssign(true)} style={{ fontSize: 12, padding: '6px 16px', background: '#111', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>+ Assign task</button>
+      <style>{`
+        .glass-header {
+          background: rgba(15, 15, 20, 0.8); backdrop-filter: blur(12px);
+          border-bottom: 1px solid var(--border-subtle);
+          position: sticky; top: 0; z-index: 50;
+        }
+        .editor-card {
+          background: var(--bg-card); border: 1px solid var(--border-subtle);
+          border-radius: 16px; padding: 20px;
+        }
+        .task-card {
+          background: var(--bg-card); border: 1px solid var(--border-subtle);
+          border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s;
+        }
+        .task-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); border-color: #4A90E2; }
+        .modal-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(6px);
+          display: flex; align-items: center; justify-content: center; z-index: 100;
+        }
+        .modal-content {
+          background: var(--bg-card); border: 1px solid var(--border-subtle);
+          border-radius: 16px; padding: 24px; width: 100%; max-width: 420px;
+          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        .dark-input {
+          width: 100%; padding: 10px 14px; background: rgba(0,0,0,0.2);
+          border: 1px solid var(--border-subtle); border-radius: 8px;
+          color: #fff; font-size: 13px; outline: none; transition: border 0.2s;
+        }
+        .dark-input:focus { border-color: #7B61FF; background: rgba(0,0,0,0.4); }
+        .reassign-btn {
+          padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 8px;
+          background: rgba(0,0,0,0.2); color: #fff; font-size: 13px; cursor: pointer;
+          transition: all 0.2s; flex: 1; text-align: center;
+        }
+        .reassign-btn:hover { background: rgba(74, 144, 226, 0.1); border-color: #4A90E2; color: #4A90E2; }
+      `}</style>
+
+      <div className="glass-header" style={{ padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Editor Capacity & Routing</div>
+        <button onClick={() => setShowAssign(true)} style={{ padding: '8px 20px', background: 'var(--primary-gradient)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(123, 97, 255, 0.3)' }}>
+          + Assign Task
+        </button>
       </div>
 
       {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400, color: '#bbb', fontSize: 14 }}>Loading...</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400, color: 'var(--text-secondary)', fontSize: 14 }}>Syncing team data...</div>
       ) : (
-        <div style={{ padding: 24 }}>
-          {/* Top KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ padding: '24px 32px' }}>
+          
+          {/* Editor Capacity KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 32 }}>
             {editors.map(editor => {
               const load = getLoad(editor.activeTasks.length)
               return (
-                <div key={editor.id} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: '#27ae60' }}>
+                <div key={editor.id} className="editor-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#fff' }}>
                       {editor.name[0]}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{editor.name}</div>
-                      <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                        <strong>{editor.activeTasks.length}</strong> active · <strong>{editor.doneTasks.length}</strong> done
+                      <div style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>{editor.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        <span style={{ color: '#fff', fontWeight: 600 }}>{editor.activeTasks.length}</span> Active · <span style={{ color: '#fff', fontWeight: 600 }}>{editor.doneTasks.length}</span> Done
                       </div>
                     </div>
-                    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: load.color + '18', color: load.color, fontWeight: 500 }}>{load.label}</span>
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: load.color + '18', color: load.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{load.label}</span>
                   </div>
-                  <div style={{ height: 4, background: '#f0f0f0', borderRadius: 2 }}>
-                    <div style={{ height: 4, width: `${load.width}%`, background: load.color, borderRadius: 2 }} />
+                  <div style={{ height: 6, background: 'var(--bg-hover)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${load.width}%`, background: load.color, borderRadius: 3, transition: 'width 0.5s ease' }} />
                   </div>
                 </div>
               )
@@ -107,30 +148,39 @@ export default function Editors() {
           </div>
 
           {/* Active Tasks Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
             {editors.map(editor => (
-              <div key={editor.id}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#111', marginBottom: 10 }}>{editor.name}'s Active Tasks</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div key={editor.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4A90E2' }}></div>
+                  {editor.name.split(' ')[0]}'s Queue
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {editor.activeTasks.length === 0 && (
-                    <div style={{ fontSize: 13, color: '#bbb', padding: '20px', textAlign: 'center', background: '#fff', borderRadius: 12, border: '1px solid #eee' }}>No active tasks</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '24px 0', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px dashed var(--border-subtle)' }}>Clear queue.</div>
                   )}
                   {editor.activeTasks.map((task: any) => {
                     const sc = statusConfig[task.status] || statusConfig.editing
                     const isOverdue = task.deadline && new Date(task.deadline) < new Date()
                     const openRevision = task.revisions?.find((r: any) => !r.resolved)
+                    const borderColor = openRevision ? '#F5A623' : isOverdue ? '#E84393' : sc.border;
+
                     return (
-                      <div key={task.id} onClick={() => setSelected({ ...task, editorId: editor.id, editorName: editor.name })}
-                        style={{ background: '#fff', border: openRevision ? '1px solid #e67e22' : '1px solid #eee', borderLeft: openRevision ? '3px solid #e67e22' : isOverdue ? '3px solid #e74c3c' : '3px solid transparent', borderRadius: 10, padding: '12px 14px', cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                      <div key={task.id} onClick={() => setSelected({ ...task, editorId: editor.id, editorName: editor.name })} className="task-card" style={{ borderLeft: `3px solid ${borderColor}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                           <div>
-                            <div style={{ fontSize: 10, color: '#bbb', marginBottom: 2 }}>{task.clients?.name}</div>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: '#111' }}>{task.title}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 500, letterSpacing: '0.02em', textTransform: 'uppercase' }}>{task.clients?.name}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.3 }}>{task.title}</div>
                           </div>
-                          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: sc.bg, color: sc.text, whiteSpace: 'nowrap', marginLeft: 8 }}>{sc.label}</span>
+                          <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 20, background: sc.bg, color: sc.text, whiteSpace: 'nowrap', marginLeft: 12, fontWeight: 600 }}>{sc.label}</span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                          <span style={{ color: isOverdue ? '#e74c3c' : '#bbb' }}>{isOverdue ? 'Overdue · ' : 'Due · '}{task.deadline || '—'}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                          <span style={{ fontSize: 11, color: isOverdue ? '#E84393' : 'var(--text-secondary)', fontWeight: isOverdue ? 600 : 400 }}>
+                            {isOverdue ? '⚠️ Overdue: ' : 'Target: '}
+                            {task.deadline ? new Date(task.deadline).toLocaleDateString('en-US', {month: 'short', day: 'numeric'}) : 'No date'}
+                          </span>
+                          {openRevision && <span style={{ fontSize: 10, color: '#F5A623', background: 'rgba(245, 166, 35, 0.1)', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>Needs Revision</span>}
                         </div>
                       </div>
                     )
@@ -144,67 +194,78 @@ export default function Editors() {
 
       {/* Task detail modal */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 380 }}>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>{selected.clients?.name} · {selected.editorName}</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#111', marginBottom: 16 }}>{selected.title}</div>
-            {[['Deadline', selected.deadline || '—'], ['Drive link', selected.drive_link || '—']].map(([l, v]) => (
-              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5f5f5', fontSize: 13 }}>
-                <span style={{ color: '#888' }}>{l}</span>
-                <span style={{ color: '#111', fontWeight: 500 }}>{v}</span>
-              </div>
-            ))}
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>Reassign to:</div>
-              <div style={{ display: 'flex', gap: 6 }}>
+        <div className="modal-overlay" onClick={() => setSelected(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 12, color: '#7B61FF', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{selected.clients?.name}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 24 }}>{selected.title}</div>
+            
+            <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 16, marginBottom: 24, border: '1px solid var(--border-subtle)' }}>
+              {[['Current Editor', selected.editorName], ['Deadline', selected.deadline || 'None Set'], ['Drive link', selected.drive_link ? 'Available' : 'Missing']].map(([l, v], i) => (
+                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: i === 2 ? '8px 0 0' : '8px 0', borderBottom: i === 2 ? 'none' : '1px solid var(--border-subtle)', fontSize: 13 }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
+                  <span style={{ color: '#fff', fontWeight: 600 }}>{v as string}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 500 }}>Reassign to:</div>
+              <div style={{ display: 'flex', gap: 8 }}>
                 {editors.filter(e => e.id !== selected.editorId).map(e => (
-                  <button key={e.id} onClick={() => reassign(selected.id, e.id)}
-                    style={{ flex: 1, padding: '7px', border: '1px solid #eee', borderRadius: 8, background: '#f9f9f9', fontSize: 13, cursor: 'pointer', color: '#111' }}>
-                    → {e.name}
+                  <button key={e.id} onClick={() => reassign(selected.id, e.id)} className="reassign-btn">
+                    {e.name}
                   </button>
                 ))}
+                {editors.filter(e => e.id !== selected.editorId).length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>No other editors available.</div>
+                )}
               </div>
             </div>
-            <button onClick={() => setSelected(null)} style={{ width: '100%', marginTop: 12, padding: '8px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer' }}>Close</button>
+
+            <button onClick={() => setSelected(null)} style={{ width: '100%', padding: '12px', border: '1px solid var(--border-subtle)', borderRadius: 8, background: 'transparent', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600, transition: 'background 0.2s' }}>
+              Close
+            </button>
           </div>
         </div>
       )}
 
       {/* Assign task modal */}
       {showAssign && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 380 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 16 }}>Assign task</div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Editor</div>
-              <select value={newTask.editorId} onChange={e => setNewTask({ ...newTask, editorId: e.target.value })}
-                style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
-                {editors.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
+        <div className="modal-overlay" onClick={() => setShowAssign(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 24 }}>Issue New Task</div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 }}>Editor</div>
+                <select value={newTask.editorId} onChange={e => setNewTask({ ...newTask, editorId: e.target.value })} className="dark-input">
+                  {editors.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 }}>Client</div>
+                <select value={newTask.client_id} onChange={e => setNewTask({ ...newTask, client_id: e.target.value })} className="dark-input">
+                  <option value="">Select client...</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Client</div>
-              <select value={newTask.client_id} onChange={e => setNewTask({ ...newTask, client_id: e.target.value })}
-                style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111' }}>
-                <option value="">Select client...</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
+
             {[
               { label: 'Video title', key: 'title', type: 'text', placeholder: 'e.g. DAMAC Lagoons tour' },
               { label: 'Deadline', key: 'deadline', type: 'date', placeholder: '' },
-              { label: 'Google Drive link', key: 'drive_link', type: 'text', placeholder: 'Paste Drive link...' },
+              { label: 'Raw Footage Link (Google Drive)', key: 'drive_link', type: 'text', placeholder: 'Paste URL...' },
             ].map(f => (
-              <div key={f.key} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{f.label}</div>
+              <div key={f.key} style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 }}>{f.label}</div>
                 <input type={f.type} value={(newTask as any)[f.key]} onChange={e => setNewTask({ ...newTask, [f.key]: e.target.value })}
-                  placeholder={f.placeholder}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #eee', borderRadius: 8, fontSize: 13, color: '#111', outline: 'none' }} />
+                  placeholder={f.placeholder} className="dark-input" />
               </div>
             ))}
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={() => setShowAssign(false)} style={{ flex: 1, padding: '8px', border: '1px solid #eee', borderRadius: 8, background: '#fff', color: '#888', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={addTask} style={{ flex: 1, padding: '8px', border: 'none', borderRadius: 8, background: '#111', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Assign</button>
+            
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <button onClick={() => setShowAssign(false)} style={{ flex: 1, padding: '12px', border: '1px solid var(--border-subtle)', borderRadius: 8, background: 'transparent', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button onClick={addTask} style={{ flex: 1, padding: '12px', border: 'none', borderRadius: 8, background: 'var(--primary-gradient)', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600, boxShadow: '0 4px 12px rgba(123, 97, 255, 0.3)' }}>Dispatch Task</button>
             </div>
           </div>
         </div>

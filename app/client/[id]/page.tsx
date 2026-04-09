@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation'
 
 export default function ClientVideosDynamicPage() {
   const params = useParams()
-  // Extract ID depending on folder structure
   const clientId = params?.id || params?.clientId 
 
   const [videos, setVideos] = useState<any[]>([])
@@ -24,7 +23,6 @@ export default function ClientVideosDynamicPage() {
 
   async function loadData() {
     setLoading(true)
-    
     const { data: clientData } = await supabase.from('clients').select('*').eq('id', clientId).single()
     if (clientData) setClient(clientData)
 
@@ -35,7 +33,6 @@ export default function ClientVideosDynamicPage() {
       .order('deadline', { ascending: true })
     
     if (videoData) setVideos(videoData)
-    
     setLoading(false)
   }
 
@@ -63,49 +60,53 @@ export default function ClientVideosDynamicPage() {
 
   return (
     <>
-      <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>My Videos</div>
+      <style>{`
+        .glass-header { background: rgba(15, 15, 20, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 50; }
+        .metric-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 16px 20px; position: relative; overflow: hidden; }
+        .metric-glow { position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; border-radius: 50%; filter: blur(30px); opacity: 0.15; pointer-events: none; }
+        .video-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; }
+        .video-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); border-color: #7B61FF; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 24px; }
+        .modal-content { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; width: 100%; max-width: 900px; display: flex; overflow: hidden; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        .dark-textarea { width: 100%; flex: 1; padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-subtle); border-radius: 10px; color: #fff; font-size: 13px; resize: none; outline: none; transition: border 0.2s; }
+        .dark-textarea:focus { border-color: #E84393; background: rgba(0,0,0,0.4); }
+      `}</style>
+
+      <div className="glass-header" style={{ padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>My Videos <span style={{fontSize: 12, color: '#E84393', marginLeft: 12}}>(Admin Preview Mode)</span></div>
         
         {needsReviewCount > 0 && (
-          <div style={{ fontSize: 12, padding: '6px 16px', background: '#f5f3ff', color: '#8e44ad', borderRadius: 20, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 6, height: 6, background: '#8e44ad', borderRadius: '50%', display: 'inline-block' }}></span>
-            {needsReviewCount} {needsReviewCount === 1 ? 'video' : 'videos'} ready for your review
+          <div style={{ fontSize: 12, padding: '6px 16px', background: 'rgba(123, 97, 255, 0.1)', border: '1px solid rgba(123, 97, 255, 0.3)', color: '#7B61FF', borderRadius: 20, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 6, height: 6, background: '#7B61FF', borderRadius: '50%', boxShadow: '0 0 8px #7B61FF' }}></span>
+            {needsReviewCount} {needsReviewCount === 1 ? 'video' : 'videos'} ready for review
           </div>
         )}
       </div>
 
-      <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', width: '100%' }}>
-        
+      <div style={{ padding: '24px 32px', maxWidth: 1000, margin: '0 auto', width: '100%' }}>
         {loading ? (
-          <div style={{ color: '#bbb', fontSize: 14, textAlign: 'center', marginTop: 40 }}>Loading client videos...</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center', marginTop: 80 }}>Loading your assets...</div>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 32 }}>
-              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
-                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>Package</div>
-                <div style={{ fontSize: 28, fontWeight: 600, color: '#111' }}>{packageTotal}</div>
-                <div style={{ fontSize: 11, color: '#bbb' }}>videos this month</div>
-              </div>
-              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
-                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>Done</div>
-                <div style={{ fontSize: 28, fontWeight: 600, color: '#27ae60' }}>{approvedCount}</div>
-                <div style={{ fontSize: 11, color: '#bbb' }}>approved</div>
-              </div>
-              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
-                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>In Progress</div>
-                <div style={{ fontSize: 28, fontWeight: 600, color: '#111' }}>{inProgressCount}</div>
-                <div style={{ fontSize: 11, color: '#bbb' }}>being worked on</div>
-              </div>
-              <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 20px' }}>
-                <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', marginBottom: 4 }}>Needs Review</div>
-                <div style={{ fontSize: 28, fontWeight: 600, color: '#8e44ad' }}>{needsReviewCount}</div>
-                <div style={{ fontSize: 11, color: '#bbb' }}>waiting for you</div>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 40 }}>
+              {[
+                { label: 'Package', value: packageTotal, sub: 'Videos/mo', color: '#4A90E2' },
+                { label: 'Approved', value: approvedCount, sub: 'Ready to post', color: '#00D084' },
+                { label: 'In Progress', value: inProgressCount, sub: 'Being edited', color: '#F5A623' },
+                { label: 'Needs Review', value: needsReviewCount, sub: 'Action needed', color: '#7B61FF' },
+              ].map(s => (
+                <div key={s.label} className="metric-card">
+                  <div className="metric-glow" style={{ background: s.color }}></div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em' }}>{s.label}</div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: s.color, marginTop: 8, fontWeight: 500 }}>{s.sub}</div>
+                </div>
+              ))}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {videos.length === 0 && (
-                <div style={{ textAlign: 'center', padding: 40, border: '1px dashed #ddd', borderRadius: 12, color: '#888', fontSize: 14 }}>
+                <div style={{ textAlign: 'center', padding: 40, border: '1px dashed var(--border-subtle)', borderRadius: 16, color: 'var(--text-secondary)', fontSize: 14, background: 'rgba(0,0,0,0.2)' }}>
                   No videos found for this month yet.
                 </div>
               )}
@@ -115,25 +116,25 @@ export default function ClientVideosDynamicPage() {
                 const isApproved = video.status === 'approved'
                 
                 return (
-                  <div key={video.id} style={{ background: '#fff', border: isReady ? '1px solid #8e44ad' : '1px solid #eee', borderLeft: isReady ? '3px solid #8e44ad' : isApproved ? '3px solid #27ae60' : '3px solid transparent', borderRadius: 12, padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <div style={{ width: 48, height: 48, background: '#111', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <div style={{ width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: '10px solid #fff', marginLeft: 4 }} />
+                  <div key={video.id} className="video-card" style={{ borderLeft: `3px solid ${isReady ? '#7B61FF' : isApproved ? '#00D084' : 'var(--border-subtle)'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                      <div style={{ width: 56, height: 56, background: 'rgba(0,0,0,0.4)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: '12px solid var(--text-secondary)', marginLeft: 4 }} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 4 }}>{video.title}</div>
-                        <div style={{ fontSize: 12, color: '#888' }}>{video.type || 'reel'} · Due {video.deadline || 'TBD'}</div>
+                        <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6 }}>{video.title}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}><span style={{ textTransform: 'uppercase', fontWeight: 600, color: '#4A90E2' }}>{video.type || 'REEL'}</span> · Due {video.deadline || 'TBD'}</div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                      {isReady && <span style={{ fontSize: 11, padding: '4px 10px', background: '#f5f3ff', color: '#8e44ad', borderRadius: 20, fontWeight: 500 }}>Ready for review</span>}
-                      {isApproved && <span style={{ fontSize: 11, padding: '4px 10px', background: '#f0fdf4', color: '#27ae60', borderRadius: 20, fontWeight: 500 }}>Approved</span>}
-                      {['editing', 'internal_review'].includes(video.status) && <span style={{ fontSize: 11, padding: '4px 10px', background: '#f5f5f5', color: '#666', borderRadius: 20, fontWeight: 500 }}>Being edited</span>}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+                      {isReady && <span style={{ fontSize: 11, padding: '4px 12px', background: 'rgba(123, 97, 255, 0.1)', color: '#7B61FF', borderRadius: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Action Needed</span>}
+                      {isApproved && <span style={{ fontSize: 11, padding: '4px 12px', background: 'rgba(0, 208, 132, 0.1)', color: '#00D084', borderRadius: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approved</span>}
+                      {['editing', 'internal_review'].includes(video.status) && <span style={{ fontSize: 11, padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', borderRadius: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>In Production</span>}
 
                       {isReady && (
-                        <button onClick={() => setSelectedVideo(video)} style={{ padding: '8px 24px', background: '#111', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-                          Review
+                        <button onClick={() => setSelectedVideo(video)} style={{ padding: '8px 24px', background: 'var(--primary-gradient)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(123, 97, 255, 0.3)' }}>
+                          Review Video
                         </button>
                       )}
                     </div>
@@ -145,57 +146,57 @@ export default function ClientVideosDynamicPage() {
         )}
       </div>
 
+      {/* Client Review Modal */}
       {selectedVideo && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 900, display: 'flex', overflow: 'hidden', maxHeight: '90vh' }}>
-            
-            <div style={{ flex: 2, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div style={{ flex: 1.5, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid var(--border-subtle)' }}>
               {selectedVideo.video_url ? (
                 <video src={selectedVideo.video_url} controls style={{ width: '100%', maxHeight: '90vh', outline: 'none' }} />
               ) : (
-                <div style={{ color: '#fff' }}>No video file available.</div>
+                <div style={{ color: 'var(--text-secondary)' }}>No video file available.</div>
               )}
             </div>
 
-            <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', background: '#f9f9f9', borderLeft: '1px solid #eee' }}>
+            <div style={{ flex: 1, padding: 28, display: 'flex', flexDirection: 'column', background: 'var(--bg-main)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <div style={{ fontSize: 16, fontWeight: 600 }}>Review Video</div>
-                <button onClick={() => { setSelectedVideo(null); setFeedback(''); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>Review Feedback</div>
+                <button onClick={() => { setSelectedVideo(null); setFeedback(''); }} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
               </div>
 
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 4 }}>{selectedVideo.title}</div>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 32 }}>Please review the video and approve it, or request changes.</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6 }}>{selectedVideo.title}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 32, lineHeight: 1.4 }}>Watch the preview. If it looks good, approve it for publishing. Otherwise, request specific edits.</div>
 
-              <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #eee', marginBottom: 24 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Ready to post?</div>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: 20, borderRadius: 12, border: '1px solid var(--border-subtle)', marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Ready to publish?</div>
                 <button 
                   onClick={() => handleReviewSubmit('approved')}
                   disabled={processing}
-                  style={{ width: '100%', padding: '10px', background: '#27ae60', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: processing ? 'default' : 'pointer' }}
+                  style={{ width: '100%', padding: '12px', background: '#00D084', color: '#000', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: processing ? 'default' : 'pointer', boxShadow: '0 4px 12px rgba(0, 208, 132, 0.2)' }}
                 >
                   {processing ? 'Processing...' : 'Approve Video'}
                 </button>
               </div>
 
-              <div style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginBottom: 24 }}>OR</div>
+              <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.1em' }}>OR</div>
 
-              <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #eee', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Request Edits</div>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 10 }}>Request Revisions</div>
                 <textarea
                   value={feedback}
                   onChange={(e) => setFeedback(e.target.value)}
-                  placeholder="What needs to be changed? Please be specific."
-                  style={{ width: '100%', flex: 1, padding: 12, border: '1px solid #ddd', borderRadius: 8, fontSize: 13, resize: 'none', outline: 'none', marginBottom: 12, minHeight: 120 }}
+                  placeholder="What needs to be changed? Be specific (e.g., 'At 0:15, swap the logo')."
+                  className="dark-textarea"
+                  style={{ marginBottom: 16, minHeight: 120 }}
                 />
                 <button 
                   onClick={() => handleReviewSubmit('editing')}
                   disabled={processing || !feedback.trim()}
-                  style={{ width: '100%', padding: '10px', background: feedback.trim() ? '#e74c3c' : '#ccc', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: (processing || !feedback.trim()) ? 'default' : 'pointer' }}
+                  style={{ width: '100%', padding: '12px', background: feedback.trim() ? '#E84393' : 'rgba(255,255,255,0.1)', color: feedback.trim() ? '#fff' : 'var(--text-secondary)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: (processing || !feedback.trim()) ? 'default' : 'pointer', transition: 'all 0.2s', boxShadow: feedback.trim() ? '0 4px 12px rgba(232, 67, 147, 0.3)' : 'none' }}
                 >
                   {processing ? 'Processing...' : 'Send Back for Edits'}
                 </button>
               </div>
-
             </div>
           </div>
         </div>

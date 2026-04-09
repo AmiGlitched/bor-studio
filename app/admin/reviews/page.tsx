@@ -1,161 +1,110 @@
 'use client'
-
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function Page() {
+export default function Reviews() {
   const [videos, setVideos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedVideo, setSelectedVideo] = useState<any>(null)
-  const [revisionNote, setRevisionNote] = useState('')
-  const [processing, setProcessing] = useState(false)
 
-  useEffect(() => {
-    loadReviewVideos()
-  }, [])
+  useEffect(() => { loadData() }, [])
 
-  async function loadReviewVideos() {
+  async function loadData() {
     setLoading(true)
     const { data } = await supabase
       .from('videos')
-      .select('*, clients(name), users(name)')
-      .eq('status', 'internal_review')
-      .order('updated_at', { ascending: false })
+      .select('*, clients(name)')
+      .eq('status', 'client_review')
+      .order('updated_at', { ascending: true })
     
     if (data) setVideos(data)
     setLoading(false)
   }
 
-  async function handleSendToClient(id: number) {
-    setProcessing(true)
-    await supabase
-      .from('videos')
-      .update({ status: 'client_review', revision_note: null })
-      .eq('id', id)
-    
-    setSelectedVideo(null)
-    setProcessing(false)
-    loadReviewVideos()
-  }
-
-  async function handleRequestRevision(id: number) {
-    if (!revisionNote.trim()) return alert('Please enter revision notes')
-    setProcessing(true)
-    await supabase
-      .from('videos')
-      .update({ status: 'editing', revision_note: revisionNote, video_uploaded: false })
-      .eq('id', id)
-    
-    setRevisionNote('')
-    setSelectedVideo(null)
-    setProcessing(false)
-    loadReviewVideos()
-  }
-
   return (
-    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 24px', height: 48, display: 'flex', alignItems: 'center' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Needs Review</div>
+    <>
+      <style>{`
+        .glass-header {
+          background: rgba(15, 15, 20, 0.8); backdrop-filter: blur(12px);
+          border-bottom: 1px solid var(--border-subtle);
+          position: sticky; top: 0; z-index: 50;
+        }
+        .review-card {
+          background: var(--bg-card); border: 1px solid var(--border-subtle);
+          border-radius: 16px; padding: 20px; transition: all 0.2s;
+          display: flex; justify-content: space-between; align-items: center;
+        }
+        .review-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); border-color: #7B61FF; }
+        .action-btn {
+          padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+          transition: all 0.2s; border: 1px solid var(--border-subtle); background: rgba(0,0,0,0.2); color: #fff; text-decoration: none; display: inline-block;
+        }
+        .action-btn:hover { background: rgba(123, 97, 255, 0.1); border-color: #7B61FF; color: #7B61FF; }
+      `}</style>
+
+      <div className="glass-header" style={{ padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Awaiting Client Approval</div>
       </div>
 
-      <div style={{ padding: 24, flex: 1 }}>
-        {loading ? (
-          <div style={{ color: '#bbb', fontSize: 14 }}>Loading videos...</div>
-        ) : videos.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, background: '#fff', border: '1px dashed #ddd', borderRadius: 12 }}>
-            <div style={{ fontSize: 18, color: '#888', marginBottom: 8 }}>All caught up!</div>
-            <div style={{ fontSize: 13, color: '#bbb' }}>No videos currently pending internal review.</div>
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400, color: 'var(--text-secondary)', fontSize: 14 }}>Scanning review queue...</div>
+      ) : (
+        <div style={{ padding: '24px 32px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
+          
+          <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
+            <div style={{ background: 'rgba(123, 97, 255, 0.1)', border: '1px solid rgba(123, 97, 255, 0.3)', borderRadius: 12, padding: '16px 24px', flex: 1 }}>
+              <div style={{ fontSize: 11, color: '#7B61FF', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 4 }}>Total in Queue</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{videos.length}</div>
+            </div>
+            <div style={{ background: 'rgba(232, 67, 147, 0.1)', border: '1px solid rgba(232, 67, 147, 0.3)', borderRadius: 12, padding: '16px 24px', flex: 1 }}>
+              {/* FIXED LINE HERE: Changed > to &gt; */}
+              <div style={{ fontSize: 11, color: '#E84393', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 4 }}>Stale (&gt; 2 Days)</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>
+                {videos.filter(v => Math.floor((new Date().getTime() - new Date(v.updated_at || v.created_at).getTime()) / 86400000) >= 2).length}
+              </div>
+            </div>
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            {videos.map(video => (
-              <div key={video.id} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', marginBottom: 4 }}>{video.clients?.name}</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#111', marginBottom: 12 }}>{video.title}</div>
+
+          {videos.length === 0 ? (
+            <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px dashed var(--border-subtle)', borderRadius: 16, padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <div style={{ fontSize: 24, marginBottom: 12 }}>🎉</div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>Inbox zero!</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>No videos are currently waiting for client approval.</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {videos.map(video => {
+                const daysWaiting = Math.floor((new Date().getTime() - new Date(video.updated_at || video.created_at).getTime()) / 86400000)
+                const isUrgent = daysWaiting >= 2
                 
-                <div style={{ fontSize: 12, color: '#666', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Editor: {video.users?.name || 'Unassigned'}</span>
-                </div>
-
-                <button 
-                  onClick={() => setSelectedVideo(video)}
-                  style={{ width: '100%', padding: '8px 0', background: '#111', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', marginTop: 'auto' }}
-                >
-                  Review Video
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Review Modal */}
-      {selectedVideo && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 900, display: 'flex', overflow: 'hidden', maxHeight: '90vh' }}>
-            
-            {/* Video Player Side */}
-            <div style={{ flex: 2, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {selectedVideo.video_url ? (
-                <video 
-                  src={selectedVideo.video_url} 
-                  controls 
-                  style={{ width: '100%', maxHeight: '90vh', outline: 'none' }}
-                />
-              ) : (
-                <div style={{ color: '#fff', textAlign: 'center' }}>
-                  <p style={{ marginBottom: 10 }}>Video file not uploaded directly.</p>
-                  <a href={selectedVideo.drive_link} target="_blank" rel="noreferrer" style={{ color: '#CCFF00' }}>Open External Link</a>
-                </div>
-              )}
+                return (
+                  <div key={video.id} className="review-card" style={{ borderLeft: `3px solid ${isUrgent ? '#E84393' : '#7B61FF'}`, background: isUrgent ? 'rgba(232, 67, 147, 0.03)' : 'var(--bg-card)' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{video.clients?.name}</span>
+                        {isUrgent ? (
+                          <span style={{ fontSize: 9, background: 'rgba(232, 67, 147, 0.1)', color: '#E84393', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>STALE: CHASE UP</span>
+                        ) : (
+                          <span style={{ fontSize: 9, background: 'rgba(123, 97, 255, 0.1)', color: '#7B61FF', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>PENDING</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6 }}>{video.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        Waiting for {daysWaiting} {daysWaiting === 1 ? 'day' : 'days'}
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <a href={`/client/${video.client_id}`} target="_blank" rel="noreferrer" className="action-btn">
+                        View as Client ↗
+                      </a>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-
-            {/* Actions Side */}
-            <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', background: '#f9f9f9', borderLeft: '1px solid #eee' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <div style={{ fontSize: 16, fontWeight: 600 }}>Review Actions</div>
-                <button onClick={() => { setSelectedVideo(null); setRevisionNote(''); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>
-              </div>
-
-              <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>Client: <strong>{selectedVideo.clients?.name}</strong></div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#111', marginBottom: 24 }}>{selectedVideo.title}</div>
-
-              {/* Action 1: Approve */}
-              <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #eee', marginBottom: 24 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Looks good?</div>
-                <button 
-                  onClick={() => handleSendToClient(selectedVideo.id)}
-                  disabled={processing}
-                  style={{ width: '100%', padding: '10px', background: '#27ae60', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: processing ? 'default' : 'pointer' }}
-                >
-                  {processing ? 'Processing...' : 'Approve & Send to Client'}
-                </button>
-              </div>
-
-              <div style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginBottom: 24 }}>OR</div>
-
-              {/* Action 2: Request Changes */}
-              <div style={{ background: '#fff', padding: 16, borderRadius: 12, border: '1px solid #eee', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Request Changes</div>
-                <textarea
-                  value={revisionNote}
-                  onChange={(e) => setRevisionNote(e.target.value)}
-                  placeholder="Type revision notes for the editor..."
-                  style={{ width: '100%', flex: 1, padding: 12, border: '1px solid #ddd', borderRadius: 8, fontSize: 13, resize: 'none', outline: 'none', marginBottom: 12, minHeight: 120 }}
-                />
-                <button 
-                  onClick={() => handleRequestRevision(selectedVideo.id)}
-                  disabled={processing || !revisionNote.trim()}
-                  style={{ width: '100%', padding: '10px', background: revisionNote.trim() ? '#e74c3c' : '#ccc', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: (processing || !revisionNote.trim()) ? 'default' : 'pointer' }}
-                >
-                  {processing ? 'Processing...' : 'Send back to Editor'}
-                </button>
-              </div>
-
-            </div>
-          </div>
+          )}
         </div>
       )}
-    </div>
+    </>
   )
 }

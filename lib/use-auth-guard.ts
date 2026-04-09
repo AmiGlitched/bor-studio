@@ -1,64 +1,51 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { AppRole } from '@/lib/auth'
 import { getUserProfile } from '@/lib/auth'
 
-type GuardState = {
-  checking: boolean
-  role?: AppRole
-}
-
-export function useAuthGuard(requiredRole?: AppRole): GuardState {
+export function useAuthGuard(requiredRole: string) {
   const [checking, setChecking] = useState(true)
-  const [role, setRole] = useState<AppRole>()
   const router = useRouter()
-  const pathname = usePathname()
 
   useEffect(() => {
-    let cancelled = false
-
-    async function checkAccess() {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const session = sessionData.session
-
-      if (!session?.user) {
-        router.replace(`/login?next=${encodeURIComponent(pathname || '/')}`)
-        if (!cancelled) setChecking(false)
-        return
-      }
-
-      const profile = await getUserProfile()
-      const currentRole = profile?.role
-
-      if (currentRole) setRole(currentRole)
-
-      if (requiredRole && currentRole !== requiredRole) {
-        router.replace('/login?error=unauthorized')
-        if (!cancelled) setChecking(false)
-        return
-      }
-
-      if (!cancelled) setChecking(false)
-    }
-
-    checkAccess()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
+    async function verify() {
+      const { data } = await supabase.auth.getSession()
+      
+      // 1. Not logged in at all? Kick to login screen.
+      if (!data.session?.user) {
         router.replace('/login')
+        return
       }
-    })
 
-    return () => {
-      cancelled = true
-      subscription.unsubscribe()
+      // 2. Fetch their actual role from your auth file
+      const profile = await getUserProfile()
+      
+      if (!profile) {
+        router.replace('/login')
+        return
+      }
+
+      // 3. GOD MODE: If the user is an admin, bypass the locks and let them see everything.
+      if (profile.role === 'admin') {
+        setChecking(false)
+        return
+      }
+
+      // 4. STRICT MODE: If they aren't an admin, their role MUST match the page they are trying to view.
+      if (profile.role !== requiredRole) {
+        // Sends them to login with the custom warning message we built earlier
+        router.replace('/login?error=unauthorized')
+        return
+      }
+
+      // 5. Passed all checks, reveal the page!
+      setChecking(false)
     }
-  }, [pathname, requiredRole, router])
 
-  return { checking, role }
+    verify()
+  }, [requiredRole, router])
+
+  return { checking }
 }
