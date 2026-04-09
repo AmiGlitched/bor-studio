@@ -33,10 +33,18 @@ export default function EditorView() {
 
   async function loadEditorData() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    const { data: authData } = await supabase.auth.getUser()
+    const user = authData?.user
 
-    const { data: profile } = await supabase.from('users').select('*').eq('auth_id', user.id).single()
+    // VERCEL FIX: Safe Constant Guard
+    if (!user?.id) {
+      setLoading(false)
+      return
+    }
+
+    const userId = user.id
+
+    const { data: profile } = await supabase.from('users').select('*').eq('auth_id', userId).single()
 
     if (profile) {
       setCurrentUser(profile)
@@ -225,10 +233,10 @@ export default function EditorView() {
         </div>
       )}
 
-      {/* Polished Upload Modal */}
+      {/* FIXED: max_width is now maxWidth */}
       {showUpload && selectedTask && (
         <div className="modal-overlay">
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 32, width: '100%', max_width: 400, textAlign: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 32, width: '100%', maxWidth: 400, textAlign: 'center' }}>
             {uploaded ? (
               <div style={{ color: '#00D084', fontWeight: 700 }}>🚀 Asset Deployed Successfully!</div>
             ) : (
