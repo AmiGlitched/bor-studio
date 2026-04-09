@@ -1,231 +1,183 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function ClientVideosPage() {
+export default function ClientPortal() {
   const [videos, setVideos] = useState<any[]>([])
-  const [client, setClient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  
   const [selectedVideo, setSelectedVideo] = useState<any>(null)
-  const [feedback, setFeedback] = useState('')
-  const [processing, setProcessing] = useState(false)
+  
+  // Feedback State
+  const [comments, setComments] = useState<any[]>([])
+  const [newComment, setNewComment] = useState('')
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    setLoading(true)
+    setLoading(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     const { data: profile } = await supabase.from('users').select('client_id').eq('auth_id', user.id).single()
     
-    if (profile?.client_id) {
-      const { data: clientData } = await supabase.from('clients').select('*').eq('id', profile.client_id).single()
-      setClient(clientData)
-
-      const { data: videoData } = await supabase
-        .from('videos')
-        .select('*')
-        .eq('client_id', profile.client_id)
-        .order('deadline', { ascending: true })
-      
-      if (videoData) setVideos(videoData)
+    if (profile) {
+      const { data } = await supabase.from('videos').select('*').eq('client_id', profile.client_id).order('created_at', { ascending: false })
+      if (data) setVideos(data)
     }
-    setLoading(false)
   }
 
-  async function handleReviewSubmit(status: 'approved' | 'editing') {
-    if (status === 'editing' && !feedback.trim()) {
-      return alert("Please enter revision notes so the editor knows what to fix.")
-    }
-    
-    setProcessing(true)
-    await supabase.from('videos').update({ 
-      status: status, 
-      revision_note: status === 'editing' ? feedback : null
-    }).eq('id', selectedVideo.id)
-    
-    setProcessing(false)
-    setSelectedVideo(null)
-    setFeedback('')
-    loadData()
+  useEffect(() => {
+    if (selectedVideo) fetchComments(selectedVideo.id)
+  }, [selectedVideo])
+
+  async function fetchComments(videoId: string) {
+    const { data } = await supabase.from('comments').select('*').eq('video_id', videoId).order('timestamp', { ascending: true })
+    if (data) setComments(data)
   }
 
-  const approvedCount = videos.filter(v => v.status === 'approved').length
-  const inProgressCount = videos.filter(v => ['editing', 'internal_review'].includes(v.status)).length
-  const needsReviewCount = videos.filter(v => v.status === 'client_review').length
-  const packageTotal = client?.videos_per_month || 0
+  async function postComment() {
+    if (!newComment.trim() || !videoRef.current) return
+    await supabase.from('comments').insert({
+      video_id: selectedVideo.id,
+      author_name: 'Client',
+      timestamp: videoRef.current.currentTime,
+      text: newComment
+    })
+    setNewComment(''); fetchComments(selectedVideo.id)
+  }
+
+  async function updateStatus(status: string) {
+    await supabase.from('videos').update({ status }).eq('id', selectedVideo.id)
+    setSelectedVideo(null); loadData()
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
 
   return (
     <>
       <style>{`
-        .glass-header {
-          background: rgba(15, 15, 20, 0.8); backdrop-filter: blur(12px);
-          border-bottom: 1px solid var(--border-subtle);
-          position: sticky; top: 0; z-index: 50;
-        }
-        .metric-card {
-          background: var(--bg-card); border: 1px solid var(--border-subtle);
-          border-radius: 16px; padding: 16px 20px; position: relative; overflow: hidden;
-        }
-        .metric-glow {
-          position: absolute; top: -20px; right: -20px; width: 80px; height: 80px;
-          border-radius: 50%; filter: blur(30px); opacity: 0.15; pointer-events: none;
-        }
-        .video-card {
-          background: var(--bg-card); border: 1px solid var(--border-subtle);
-          border-radius: 16px; padding: 20px; display: flex; justify-content: space-between; align-items: center;
-          transition: all 0.2s;
-        }
-        .video-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); border-color: #7B61FF; }
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-          display: flex; align-items: center; justify-content: center; z-index: 100; padding: 24px;
-        }
-        .modal-content {
-          background: var(--bg-card); border: 1px solid var(--border-subtle);
-          border-radius: 16px; width: 100%; max-width: 900px; display: flex; overflow: hidden; max-height: 90vh;
-          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-        }
-        .dark-textarea {
-          width: 100%; flex: 1; padding: 14px; background: rgba(0,0,0,0.2);
-          border: 1px solid var(--border-subtle); border-radius: 10px;
-          color: #fff; font-size: 13px; resize: none; outline: none; transition: border 0.2s;
-        }
-        .dark-textarea:focus { border-color: #E84393; background: rgba(0,0,0,0.4); }
+        .glass-header { background: rgba(15, 15, 20, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 50; }
+        .page-container { max-width: 1200px; margin: 0 auto; padding: 40px 32px; width: 100%; }
+        
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; marginBottom: 48px; }
+        .stat-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 24px 32px; position: relative; overflow: hidden; }
+        .stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 8px; }
+        .stat-value { font-size: 36px; font-weight: 800; color: #fff; line-height: 1; }
+        .stat-glow { position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; filter: blur(40px); opacity: 0.1; }
+
+        /* Video List */
+        .asset-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; padding: 24px 32px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; margin-bottom: 16px; }
+        .asset-card:hover { transform: translateY(-2px); border-color: #7B61FF; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+
+        /* Buttons */
+        .btn { padding: 12px 24px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border-subtle); background: rgba(255,255,255,0.03); color: #fff; }
+        .btn:hover { background: rgba(255,255,255,0.08); border-color: #fff; }
+        .btn-primary { background: var(--primary-gradient); border: none; box-shadow: 0 4px 15px rgba(123, 97, 255, 0.3); }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 40px; }
+        .modal-content { background: #000; border: 1px solid var(--border-subtle); border-radius: 24px; width: 100%; max-width: 1240px; display: grid; grid-template-columns: 1fr 380px; height: 85vh; overflow: hidden; }
+        .comment-box { padding: 16px; border-bottom: 1px solid var(--border-subtle); transition: background 0.2s; cursor: pointer; }
+        .comment-box:hover { background: rgba(255,255,255,0.05); }
       `}</style>
 
-      <div className="glass-header" style={{ padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>My Videos</div>
-        
-        {needsReviewCount > 0 && (
-          <div style={{ fontSize: 12, padding: '6px 16px', background: 'rgba(123, 97, 255, 0.1)', border: '1px solid rgba(123, 97, 255, 0.3)', color: '#7B61FF', borderRadius: 20, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 6, height: 6, background: '#7B61FF', borderRadius: '50%', boxShadow: '0 0 8px #7B61FF' }}></span>
-            {needsReviewCount} {needsReviewCount === 1 ? 'video' : 'videos'} ready for review
-          </div>
-        )}
+      <div className="glass-header" style={{ padding: '0 32px', height: 64, display: 'flex', alignItems: 'center' }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>My Assets</div>
       </div>
 
-      <div style={{ padding: '24px 32px', maxWidth: 1000, margin: '0 auto', width: '100%' }}>
-        
-        {loading ? (
-          <div style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center', marginTop: 80 }}>Loading your assets...</div>
-        ) : (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 40 }}>
-              {[
-                { label: 'Package', value: packageTotal, sub: 'Videos/mo', color: '#4A90E2' },
-                { label: 'Approved', value: approvedCount, sub: 'Ready to post', color: '#00D084' },
-                { label: 'In Progress', value: inProgressCount, sub: 'Being edited', color: '#F5A623' },
-                { label: 'Needs Review', value: needsReviewCount, sub: 'Action needed', color: '#7B61FF' },
-              ].map(s => (
-                <div key={s.label} className="metric-card">
-                  <div className="metric-glow" style={{ background: s.color }}></div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em' }}>{s.label}</div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: s.color, marginTop: 8, fontWeight: 500 }}>{s.sub}</div>
-                </div>
-              ))}
+      <div className="page-container">
+        {/* Metrics Section - More spaced out */}
+        <div className="stats-grid">
+          {[
+            { label: 'Ready for Post', value: videos.filter(v => v.status === 'approved').length, color: '#00D084' },
+            { label: 'In QA / Review', value: videos.filter(v => v.status === 'client_review').length, color: '#7B61FF' },
+            { label: 'In Production', value: videos.filter(v => v.status === 'editing' || v.status === 'internal_review').length, color: '#E84393' },
+          ].map(stat => (
+            <div key={stat.label} className="stat-card">
+              <div className="stat-glow" style={{ background: stat.color }}></div>
+              <div className="stat-label">{stat.label}</div>
+              <div className="stat-value" style={{ color: stat.color }}>{stat.value}</div>
             </div>
+          ))}
+        </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {videos.length === 0 && (
-                <div style={{ textAlign: 'center', padding: 40, border: '1px dashed var(--border-subtle)', borderRadius: 16, color: 'var(--text-secondary)', fontSize: 14, background: 'rgba(0,0,0,0.2)' }}>
-                  No videos found for this month yet.
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 4, height: 16, background: '#7B61FF', borderRadius: 2 }}></div>
+          Recent Deliveries
+        </div>
+
+        {/* Video List - Larger cards with better spacing */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {videos.filter(v => v.video_uploaded).length === 0 ? (
+            <div style={{ padding: 80, textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 24, border: '1px dashed var(--border-subtle)' }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>🎬</div>
+              <div style={{ color: '#fff', fontWeight: 600 }}>Your video queue is being prepared</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 4 }}>Once a video is ready for your review, it will appear here.</div>
+            </div>
+          ) : (
+            videos.filter(v => v.video_uploaded).map(video => (
+              <div key={video.id} className="asset-card">
+                <div>
+                  <div style={{ fontSize: 11, color: '#7B61FF', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>{video.type || 'REEL'}</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#fff' }}>{video.title}</div>
                 </div>
-              )}
-
-              {videos.map(video => {
-                const isReady = video.status === 'client_review'
-                const isApproved = video.status === 'approved'
-                
-                return (
-                  <div key={video.id} className="video-card" style={{ borderLeft: `3px solid ${isReady ? '#7B61FF' : isApproved ? '#00D084' : 'var(--border-subtle)'}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                      <div style={{ width: 56, height: 56, background: 'rgba(0,0,0,0.4)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-subtle)' }}>
-                        <div style={{ width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: '12px solid var(--text-secondary)', marginLeft: 4 }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6 }}>{video.title}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}><span style={{ textTransform: 'uppercase', fontWeight: 600, color: '#4A90E2' }}>{video.type || 'REEL'}</span> · Due {video.deadline || 'TBD'}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
-                      {isReady && <span style={{ fontSize: 11, padding: '4px 12px', background: 'rgba(123, 97, 255, 0.1)', color: '#7B61FF', borderRadius: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Action Needed</span>}
-                      {isApproved && <span style={{ fontSize: 11, padding: '4px 12px', background: 'rgba(0, 208, 132, 0.1)', color: '#00D084', borderRadius: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approved</span>}
-                      {['editing', 'internal_review'].includes(video.status) && <span style={{ fontSize: 11, padding: '4px 12px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', borderRadius: 20, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>In Production</span>}
-
-                      {isReady && (
-                        <button onClick={() => setSelectedVideo(video)} style={{ padding: '8px 24px', background: 'var(--primary-gradient)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(123, 97, 255, 0.3)' }}>
-                          Review Video
-                        </button>
-                      )}
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: video.status === 'approved' ? '#00D084' : '#F5A623', padding: '6px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 20 }}>
+                    {video.status === 'approved' ? '✓ Approved' : '• Awaiting Approval'}
                   </div>
-                )
-              })}
-            </div>
-          </>
-        )}
+                  <button onClick={() => setSelectedVideo(video)} className="btn btn-primary">Watch Video</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      {/* Client Review Modal */}
+      {/* Professional Player Modal */}
       {selectedVideo && (
         <div className="modal-overlay">
           <div className="modal-content">
-            
-            {/* Video Player Area */}
-            <div style={{ flex: 1.5, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid var(--border-subtle)' }}>
-              {selectedVideo.video_url ? (
-                <video src={selectedVideo.video_url} controls style={{ width: '100%', maxHeight: '90vh', outline: 'none' }} />
-              ) : (
-                <div style={{ color: 'var(--text-secondary)' }}>No video file available.</div>
-              )}
+            {/* Player Side */}
+            <div style={{ display: 'flex', flexDirection: 'column', background: '#000' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <video ref={videoRef} src={selectedVideo.video_url} controls style={{ width: '100%', maxHeight: '70vh' }} />
+              </div>
+              <div style={{ padding: '24px 32px', background: '#0a0a0f', borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: 16 }}>
+                <button onClick={() => updateStatus('approved')} className="btn" style={{ flex: 1, background: '#00D084', color: '#000', border: 'none' }}>Approve for Posting ✅</button>
+                <button onClick={() => updateStatus('editing')} className="btn" style={{ flex: 1, background: '#E84393', border: 'none' }}>Request Edits ❌</button>
+                <button onClick={() => setSelectedVideo(null)} className="btn">Close</button>
+              </div>
             </div>
 
-            {/* Feedback Sidebar */}
-            <div style={{ flex: 1, padding: 28, display: 'flex', flexDirection: 'column', background: 'var(--bg-main)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>Review Feedback</div>
-                <button onClick={() => { setSelectedVideo(null); setFeedback(''); }} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
+            {/* Feedback Side */}
+            <div style={{ background: '#0a0a0f', borderLeft: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)', color: '#fff', fontWeight: 700, fontSize: 15 }}>Feedback Panel</div>
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {comments.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>No feedback yet. Add your thoughts at specific timestamps!</div>
+                ) : (
+                  comments.map((c, i) => (
+                    <div key={i} className="comment-box" onClick={() => { if(videoRef.current) videoRef.current.currentTime = c.timestamp }}>
+                      <span style={{ fontSize: 10, background: 'rgba(123, 97, 255, 0.2)', color: '#7B61FF', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>{formatTime(c.timestamp)}</span>
+                      <div style={{ marginTop: 8, color: '#fff', fontSize: 13, lineHeight: 1.5 }}>{c.text}</div>
+                    </div>
+                  ))
+                )}
               </div>
-
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6 }}>{selectedVideo.title}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 32, lineHeight: 1.4 }}>Watch the preview. If it looks good, approve it for publishing. Otherwise, request specific edits.</div>
-
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: 20, borderRadius: 12, border: '1px solid var(--border-subtle)', marginBottom: 24 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Ready to publish?</div>
-                <button 
-                  onClick={() => handleReviewSubmit('approved')}
-                  disabled={processing}
-                  style={{ width: '100%', padding: '12px', background: '#00D084', color: '#000', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: processing ? 'default' : 'pointer', boxShadow: '0 4px 12px rgba(0, 208, 132, 0.2)' }}
-                >
-                  {processing ? 'Processing...' : 'Approve Video'}
-                </button>
-              </div>
-
-              <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.1em' }}>OR</div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 10 }}>Request Revisions</div>
-                <textarea
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  placeholder="What needs to be changed? Be specific (e.g., 'At 0:15, swap the logo')."
-                  className="dark-textarea"
-                  style={{ marginBottom: 16, minHeight: 120 }}
+              <div style={{ padding: 24, background: '#111', borderTop: '1px solid var(--border-subtle)' }}>
+                <textarea 
+                  value={newComment} 
+                  onChange={e => setNewComment(e.target.value)} 
+                  placeholder="Drop a note at this time..." 
+                  style={{ width: '100%', background: '#000', color: '#fff', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 16, fontSize: 13, minHeight: 100, resize: 'none', marginBottom: 12 }} 
                 />
-                <button 
-                  onClick={() => handleReviewSubmit('editing')}
-                  disabled={processing || !feedback.trim()}
-                  style={{ width: '100%', padding: '12px', background: feedback.trim() ? '#E84393' : 'rgba(255,255,255,0.1)', color: feedback.trim() ? '#fff' : 'var(--text-secondary)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: (processing || !feedback.trim()) ? 'default' : 'pointer', transition: 'all 0.2s', boxShadow: feedback.trim() ? '0 4px 12px rgba(232, 67, 147, 0.3)' : 'none' }}
-                >
-                  {processing ? 'Processing...' : 'Send Back for Edits'}
-                </button>
+                <button onClick={postComment} className="btn btn-primary" style={{ width: '100%' }}>Post Comment</button>
               </div>
-
             </div>
           </div>
         </div>

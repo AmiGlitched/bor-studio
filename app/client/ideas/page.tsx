@@ -1,25 +1,81 @@
 'use client'
+import { useState, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export default function ClientIdeas() {
+  const [text, setText] = useState('')
+  const [recording, setRecording] = useState(false)
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+  const mediaRecorder = useRef<MediaRecorder | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function startRecording() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaRecorder.current = new MediaRecorder(stream)
+    const chunks: Blob[] = []
+    mediaRecorder.current.ondataavailable = e => chunks.push(e.data)
+    mediaRecorder.current.onstop = () => setAudioBlob(new Blob(chunks, { type: 'audio/webm' }))
+    mediaRecorder.current.start()
+    setRecording(true)
+  }
+
+  function stopRecording() {
+    mediaRecorder.current?.stop()
+    setRecording(false)
+  }
+
+  async function submitIdea() {
+    setLoading(true)
+    let audioUrl = ''
+    
+    if (audioBlob) {
+      const fileName = `idea-${Date.now()}.webm`
+      const { data } = await supabase.storage.from('ideas_audio').upload(fileName, audioBlob)
+      if (data) {
+        const { data: urlData } = supabase.storage.from('ideas_audio').getPublicUrl(fileName)
+        audioUrl = urlData.publicUrl
+      }
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: profile } = await supabase.from('users').select('client_id').eq('auth_id', user.id).single()
+
+    await supabase.from('ideas').insert({
+      client_id: profile.client_id,
+      text_content: text,
+      audio_url: audioUrl
+    })
+
+    setText(''); setAudioBlob(null); setLoading(false); alert("Idea sent to team!")
+  }
+
   return (
-    <>
-      <div style={{ padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', background: 'rgba(15, 15, 20, 0.8)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Send Ideas</div>
-      </div>
-      <div style={{ padding: '24px 32px', maxWidth: 1000, margin: '0 auto', width: '100%' }}>
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 32 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6 }}>Have a content idea?</div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>Drop your thoughts, reference links, or audio notes here for the creative team.</div>
-          
-          <textarea 
-            placeholder="Describe your idea or paste TikTok/Reel links here..."
-            style={{ width: '100%', minHeight: 150, padding: 16, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-subtle)', borderRadius: 12, color: '#fff', fontSize: 13, outline: 'none', resize: 'vertical', marginBottom: 16 }}
-          />
-          <button style={{ padding: '12px 24px', background: 'var(--primary-gradient)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(123, 97, 255, 0.3)' }}>
-            Submit Idea to Team
-          </button>
+    <div style={{ padding: 40, maxWidth: 600, margin: '0 auto' }}>
+      <div style={{ background: '#1a1a22', border: '1px solid #333', borderRadius: 24, padding: 32, textAlign: 'center' }}>
+        <h2 style={{ color: '#fff', marginBottom: 8 }}>Brainstorming Lab</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 32 }}>Share your thoughts, links, or a quick voice note.</p>
+        
+        <textarea 
+          value={text} onChange={e => setText(e.target.value)}
+          placeholder="What's on your mind? Reel ideas, trending audios, references..."
+          style={{ width: '100%', minHeight: 150, background: '#111', border: '1px solid #333', borderRadius: 16, padding: 16, color: '#fff', fontSize: 14, marginBottom: 20 }}
+        />
+
+        <div style={{ display: 'flex', gap: 12, marginBottom: 32, justifyContent: 'center' }}>
+          {!recording ? (
+            <button onClick={startRecording} style={{ background: 'rgba(232, 67, 147, 0.1)', color: '#E84393', border: '1px solid #E84393', padding: '10px 20px', borderRadius: 20, cursor: 'pointer', fontWeight: 600 }}>🎤 Start Voice Note</button>
+          ) : (
+            <button onClick={stopRecording} style={{ background: '#E84393', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 20, cursor: 'pointer', fontWeight: 600 }}>⏹ Stop Recording</button>
+          )}
+          {audioBlob && <span style={{ color: '#00D084', fontSize: 13, display: 'flex', alignItems: 'center' }}>✓ Audio Ready</span>}
         </div>
+
+        <button 
+          onClick={submitIdea} disabled={loading || (!text && !audioBlob)}
+          style={{ width: '100%', padding: 16, background: 'var(--primary-gradient)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 15 }}>
+          {loading ? 'Sending...' : 'Send to Creative Team'}
+        </button>
       </div>
-    </>
+    </div>
   )
 }
