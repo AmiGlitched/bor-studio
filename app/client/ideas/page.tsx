@@ -2,182 +2,159 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function ClientIdeas() {
+export default function ContentStrategy() {
   const [ideas, setIdeas] = useState<any[]>([])
-  const [newIdea, setNewIdea] = useState({ title: '', content: '' })
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-
-  // Voice Recording State
+  const [rawIdea, setRawIdea] = useState('')
+  const [generatedScript, setGeneratedScript] = useState<any>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [audioURL, setAudioURL] = useState<string | null>(null)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const mediaRecorder = useRef<MediaRecorder | null>(null)
 
-  useEffect(() => {
-    loadIdeas()
-  }, [])
+  useEffect(() => { loadIdeas() }, [])
 
   async function loadIdeas() {
-    setLoading(true)
     const { data: auth } = await supabase.auth.getUser()
-    
-    // VERCEL FIX: Explicitly check and capture ID to satisfy the linter
-    if (!auth?.user?.id) {
-      setLoading(false)
-      return
-    }
-
-    const userId = auth.user.id
-
-    const { data: profile } = await supabase
-      .from('users')
-      .select('client_id')
-      .eq('auth_id', userId)
-      .single()
-
+    if (!auth?.user?.id) return
+    const { data: profile } = await supabase.from('users').select('client_id').eq('auth_id', auth.user.id).single()
     if (profile?.client_id) {
-      const { data } = await supabase
-        .from('ideas')
-        .select('*')
-        .eq('client_id', profile.client_id)
-        .order('created_at', { ascending: false })
-      
+      const { data } = await supabase.from('ideas').select('*').eq('client_id', profile.client_id).order('created_at', { ascending: false })
       if (data) setIdeas(data)
     }
-    setLoading(false)
   }
 
-  // Voice Recording Logic
+  // AI Script Logic (Simulated for Frontend)
+  async function generateHormoziScript() {
+    if (!rawIdea) return
+    setIsGenerating(true)
+    // In production, this calls your /api/generate route
+    setTimeout(() => {
+      setGeneratedScript({
+        hook: "STOP scrolling if you want to scale your brand...",
+        value: "Most people think almond milk is just water and nuts. They're wrong. Here's why...",
+        cta: "Click the link in bio for the clean label revolution."
+      })
+      setIsGenerating(false)
+    }, 1500)
+  }
+
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     mediaRecorder.current = new MediaRecorder(stream)
-    const chunks: BlobPart[] = []
-
+    const chunks: any[] = []
     mediaRecorder.current.ondataavailable = (e) => chunks.push(e.data)
     mediaRecorder.current.onstop = () => {
-      const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' })
+      const blob = new Blob(chunks, { type: 'audio/ogg' })
       setAudioBlob(blob)
       setAudioURL(URL.createObjectURL(blob))
     }
-
     mediaRecorder.current.start()
     setIsRecording(true)
   }
 
-  const stopRecording = () => {
-    mediaRecorder.current?.stop()
-    setIsRecording(false)
-  }
-
-  async function handleSubmit() {
-    if (!newIdea.title.trim() && !audioBlob) return
-    setSubmitting(true)
-    
+  async function submitToTeam() {
     const { data: auth } = await supabase.auth.getUser()
     if (!auth?.user?.id) return
-
-    const userId = auth.user.id
-    const { data: profile } = await supabase.from('users').select('client_id').eq('auth_id', userId).single()
-
-    if (profile?.client_id) {
-      let voiceUrl = null
-
-      // If there's a voice note, upload it to storage
-      if (audioBlob) {
-        const fileName = `${Date.now()}-voice.ogg`
-        const { data: uploadData } = await supabase.storage.from('videos').upload(`ideas/${fileName}`, audioBlob)
-        if (uploadData) {
-          const { data: urlData } = supabase.storage.from('videos').getPublicUrl(`ideas/${fileName}`)
-          voiceUrl = urlData.publicUrl
-        }
+    const { data: profile } = await supabase.from('users').select('client_id').eq('auth_id', auth.user.id).single()
+    
+    let voiceUrl = null
+    if (audioBlob) {
+      const fileName = `${Date.now()}-voice.ogg`
+      const { data: upload } = await supabase.storage.from('videos').upload(`ideas/${fileName}`, audioBlob)
+      if (upload) {
+        const { data: url } = supabase.storage.from('videos').getPublicUrl(`ideas/${fileName}`)
+        voiceUrl = url.publicUrl
       }
-
-      await supabase.from('ideas').insert({
-        client_id: profile.client_id,
-        title: newIdea.title || 'Untitled Idea',
-        description: newIdea.content,
-        voice_url: voiceUrl,
-        status: 'pending'
-      })
-
-      setNewIdea({ title: '', content: '' })
-      setAudioURL(null)
-      setAudioBlob(null)
-      loadIdeas()
     }
-    setSubmitting(false)
+
+    await supabase.from('ideas').insert({
+      client_id: profile?.client_id,
+      title: rawIdea.substring(0, 30) + "...",
+      description: rawIdea,
+      voice_url: voiceUrl,
+      status: 'pending'
+    })
+    
+    const slackWebhookUrl = "https://hooks.slack.com/services/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RE"; 
+
+try {
+  await fetch(slackWebhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: `🚨 *New Concept Submitted!*\n*Client:* A client just submitted a new idea.\n*Title:* ${rawIdea.substring(0, 30)}...\n<https://your-domain.com/admin/ideas|Click here to review the brief>`
+    })
+  });
+} catch (err) {
+  console.log("Slack notification failed", err);
+}
+    setRawIdea(''); setAudioURL(null); setGeneratedScript(null); loadIdeas()
   }
 
   return (
-    <>
-      <style>{`
-        .glass-header { background: rgba(15, 15, 20, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 50; }
-        .page-container { max-width: 900px; margin: 0 auto; padding: 40px 32px; width: 100%; }
-        .input-box { width: 100%; background: #0a0a0f; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; color: #fff; font-size: 14px; outline: none; margin-bottom: 16px; }
-        .input-box:focus { border-color: #7B61FF; }
-        .idea-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; margin-bottom: 12px; }
-        .record-btn { padding: 12px; border-radius: 12px; border: 1px solid #333; background: #111; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; transition: all 0.2s; }
-        .record-btn.active { background: rgba(232, 67, 147, 0.1); border-color: #E84393; color: #E84393; }
-      `}</style>
-
-      <div className="glass-header" style={{ padding: '0 32px', height: 60, display: 'flex', alignItems: 'center' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Send Ideas</div>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '60px 40px', background: '#050505', minHeight: '100vh', color: '#fff' }}>
+      
+      <div style={{ borderBottom: '1px solid #1a1a22', paddingBottom: 32, marginBottom: 48 }}>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 36, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8 }}>Content Strategy</h1>
+        <p style={{ color: '#666', fontSize: 14, fontWeight: 500 }}>Turn high-level concepts into high-retention production assets.</p>
       </div>
 
-      <div className="page-container">
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: 28, marginBottom: 40 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 20 }}>Creative Brainstorm</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 40, alignItems: 'start' }}>
+        
+        {/* Input Column */}
+        <div style={{ background: '#0f0f0f', border: '1px solid #1a1a22', padding: 32, borderRadius: 12 }}>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: '#D4AF37', marginBottom: 24 }}>The Concept</h2>
           
-          <input 
-            className="input-box" 
-            placeholder="Topic or Title..." 
-            value={newIdea.title}
-            onChange={e => setNewIdea({...newIdea, title: e.target.value})}
-          />
           <textarea 
-            className="input-box" 
-            placeholder="Describe your idea or paste links (TikTok, Reels, etc.)..." 
-            style={{ minHeight: 100, resize: 'none' }}
-            value={newIdea.content}
-            onChange={e => setNewIdea({...newIdea, content: e.target.value})}
+            placeholder="Input your raw idea or a specific topic..."
+            value={rawIdea}
+            onChange={(e) => setRawIdea(e.target.value)}
+            style={{ width: '100%', height: 180, background: 'transparent', border: '1px solid #222', borderRadius: 8, color: '#fff', padding: 16, fontSize: 15, lineHeight: 1.6, resize: 'none', outline: 'none', marginBottom: 20 }}
           />
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
             {!isRecording ? (
-              <button onClick={startRecording} className="record-btn">🎤 Start Voice Note</button>
+              <button onClick={startRecording} style={{ flex: 1, padding: '12px', background: '#111', border: '1px solid #333', color: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>🎤 Voice Briefing</button>
             ) : (
-              <button onClick={stopRecording} className="record-btn active">🛑 Stop Recording...</button>
+              <button onClick={() => mediaRecorder.current?.stop()} style={{ flex: 1, padding: '12px', background: 'rgba(232, 67, 147, 0.1)', border: '1px solid #E84393', color: '#E84393', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>🛑 Stop Recording</button>
             )}
-            {audioURL && <audio src={audioURL} controls style={{ height: 40, borderRadius: 8 }} />}
+            <button onClick={generateHormoziScript} disabled={!rawIdea || isGenerating} style={{ flex: 1, padding: '12px', background: '#D4AF37', border: 'none', color: '#000', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>
+              {isGenerating ? 'Analyzing...' : 'AI Script'}
+            </button>
           </div>
-          
-          <button 
-            onClick={handleSubmit}
-            disabled={submitting || (!newIdea.title && !audioBlob)}
-            style={{ 
-              width: '100%', padding: '14px', background: 'var(--primary-gradient)', 
-              color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
-            }}
-          >
-            {submitting ? 'Sending...' : 'Submit to Team'}
+
+          {audioURL && <audio src={audioURL} controls style={{ width: '100%', marginBottom: 20, height: 36 }} />}
+
+          <button onClick={submitToTeam} style={{ width: '100%', padding: '16px', background: '#fff', color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer' }}>
+            Submit to Production
           </button>
         </div>
 
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 20 }}>Previous Ideas</div>
-        
-        {loading ? <div style={{ color: 'var(--text-secondary)' }}>Loading...</div> : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {ideas.map(idea => (
-              <div key={idea.id} className="idea-card">
-                <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 8 }}>{idea.title}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>{idea.description}</div>
-                {idea.voice_url && <audio src={idea.voice_url} controls style={{ width: '100%', height: 32 }} />}
+        {/* AI Output Column */}
+        <div style={{ border: '1px solid #1a1a22', padding: 32, borderRadius: 12, minHeight: 400 }}>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: '#fff', marginBottom: 24 }}>Production Brief</h2>
+          
+          {!generatedScript && !isGenerating ? (
+            <div style={{ color: '#444', fontSize: 13, textAlign: 'center', marginTop: 100 }}>Use the AI Script tool to generate a framework.</div>
+          ) : (
+            <div style={{ opacity: isGenerating ? 0.3 : 1, transition: '0.3s' }}>
+              <div style={{ marginBottom: 24 }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#D4AF37', display: 'block', marginBottom: 8, fontWeight: 700 }}>[ 00:00 — THE HOOK ]</span>
+                <p style={{ color: '#eee', fontSize: 14, lineHeight: 1.6 }}>{generatedScript?.hook}</p>
               </div>
-            ))}
-          </div>
-        )}
+              <div style={{ marginBottom: 24 }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#666', display: 'block', marginBottom: 8, fontWeight: 700 }}>[ 00:03 — CORE VALUE ]</span>
+                <p style={{ color: '#eee', fontSize: 14, lineHeight: 1.6 }}>{generatedScript?.value}</p>
+              </div>
+              <div>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#fff', display: 'block', marginBottom: 8, fontWeight: 700 }}>[ 00:25 — CONVERSION ]</span>
+                <p style={{ color: '#eee', fontSize: 14, lineHeight: 1.6 }}>{generatedScript?.cta}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   )
 }

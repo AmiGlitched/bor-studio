@@ -1,26 +1,32 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;700&display=swap');
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --bg-deep: #050505;        /* Near absolute black */
+  --bg-card: #0F0F0F;        /* Slightly elevated black */
+  --accent-gold: #D4AF37;    /* Muted luxury gold */
+  --accent-gold-dim: rgba(212, 175, 55, 0.1);
+  --text-main: #F5F5F5;
+  --text-muted: #888888;
+  --border-subtle: #1A1A1A;
+  
+  --font-serif: 'Playfair Display', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: 'Inter', sans-serif; /* Fallback */
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-deep);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, .serif-heading {
+  font-family: var(--font-serif);
+  letter-spacing: -0.02em;
+}
+
+.mono-data {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  letter-spacing: 0.05em;
 }

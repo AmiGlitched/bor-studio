@@ -1,117 +1,69 @@
 'use client'
 
-import { ReactNode } from 'react'
-import { useAuthGuard } from '@/lib/use-auth-guard'
-import SidebarProfile from '@/components/SidebarProfile'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import SidebarProfile from '@/components/SidebarProfile'
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
-  const { checking } = useAuthGuard('admin')
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
-  if (checking) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f14', color: '#a0a0b0', fontFamily: 'system-ui, sans-serif' }}>
-        <div className="loader">Initializing Agency OS...</div>
-      </div>
-    )
-  }
-
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '◱', href: '/admin' },
-    { id: 'pipeline', label: 'Pipeline', icon: '⫸', href: '/admin/pipeline' },
-    { id: 'reviews', label: 'Needs Review', icon: '★', href: '/admin/reviews' },
-    { id: 'shoots', label: 'Calendar', icon: '📅', href: '/admin/shoots' },
-    { id: 'editors', label: 'Editors', icon: '✂️', href: '/admin/editors' },
-    { id: 'clients', label: 'Clients', icon: '🏢', href: '/admin/clients' },
+    { name: 'Dashboard', href: '/admin', icon: '📊' },
+    { name: 'Pipeline', href: '/admin/pipeline', icon: '🚀' },
+    { name: 'Performance', href: '/admin/performance', icon: '📈' },
+    { name: 'Needs Review', href: '/admin/reviews', icon: '⭐' },
+    { name: 'Calendar', href: '/admin/calendar', icon: '📅' },
+    { name: 'Editors', href: '/admin/editors', icon: '✂️' },
+    { name: 'Clients', href: '/admin/clients', icon: '👤' },
+    { name: 'Ideas', href: '/admin/ideas', icon: '💡' },
   ]
 
   return (
-    <>
-      <style>{`
-        :root {
-          --bg-main: #0f0f14;
-          --bg-sidebar: #13131a;
-          --bg-card: #1a1a22;
-          --bg-hover: #22222c;
-          --border-subtle: #2a2a35;
-          --text-primary: #ffffff;
-          --text-secondary: #a0a0b0;
-          --primary-gradient: linear-gradient(135deg, #7B61FF, #E84393, #4A90E2);
-        }
-        * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg-main); color: var(--text-primary); }
-        .nav-item {
-          transition: all 0.2s ease;
-          position: relative;
-        }
-        .nav-item:hover {
-          background: var(--bg-hover) !important;
-          color: #fff !important;
-        }
-        .nav-item.active {
-          background: linear-gradient(90deg, rgba(123, 97, 255, 0.1) 0%, transparent 100%) !important;
-          color: #fff !important;
-        }
-        .nav-item.active::before {
-          content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-          background: var(--primary-gradient);
-          border-radius: 0 4px 4px 0;
-        }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-      `}</style>
+    <div style={{ display: 'flex', height: '100vh', background: '#0a0a0f', color: '#fff', margin: 0, padding: 0, overflow: 'hidden' }}>
       
-      <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif', background: 'var(--bg-main)' }}>
+      {/* Sidebar */}
+      <aside style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #1a1a22', background: '#0a0a0f' }}>
         
-        {/* Dark Sidebar */}
-        <div style={{ width: 220, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', flexShrink: 0, zIndex: 10 }}>
-          
-          {/* Brand Header */}
-          <div style={{ padding: '20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 32, height: 32, background: 'var(--primary-gradient)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, boxShadow: '0 4px 12px rgba(123, 97, 255, 0.3)' }}>
+        {/* Logo Section */}
+        <div style={{ padding: '32px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #7B61FF 0%, #E84393 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 18 }}>
               R
             </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>Realtors</div>
-              <div style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Agency OS</div>
-            </div>
-          </div>
-          
-          {/* Navigation */}
-          <nav style={{ padding: '16px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {navItems.map(item => {
-              const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
-              return (
-                <Link key={item.id} href={item.href} className={`nav-item ${isActive ? 'active' : ''}`}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', fontSize: 13,
-                    color: isActive ? '#fff' : 'var(--text-secondary)',
-                    fontWeight: isActive ? 600 : 500,
-                    textDecoration: 'none',
-                    background: 'transparent'
-                  }}>
-                  <span style={{ fontSize: 14, opacity: isActive ? 1 : 0.7 }}>{item.icon}</span>
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
-          
-          <div style={{ padding: '16px', borderTop: '1px solid var(--border-subtle)' }}>
-            <SidebarProfile />
+            <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.5px' }}>Agency OS</div>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {children}
-        </div>
-        
-      </div>
-    </>
+        {/* Navigation Links */}
+        <nav style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
+          {navItems.map((item) => {
+            const isActive = pathname === item.href
+            return (
+              <Link 
+                key={item.href} 
+                href={item.href} 
+                style={{ 
+                  display: 'flex', alignItems: 'center', padding: '12px 16px', borderRadius: 12, 
+                  background: isActive ? '#1a1a22' : 'transparent', 
+                  color: isActive ? '#fff' : '#666', 
+                  textDecoration: 'none', fontWeight: 600, fontSize: 14, transition: 'all 0.2s' 
+                }}
+              >
+                <span style={{ marginRight: 12, fontSize: 18 }}>{item.icon}</span>
+                {item.name}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* Profile Component */}
+        <SidebarProfile />
+      </aside>
+
+      {/* Main Content */}
+      <main style={{ flex: 1, overflowY: 'auto', background: '#0a0a0f', position: 'relative' }}>
+        {children}
+      </main>
+    </div>
   )
 }
