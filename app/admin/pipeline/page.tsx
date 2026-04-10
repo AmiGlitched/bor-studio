@@ -7,7 +7,7 @@ const COLUMNS = [
   { id: 'editing', title: 'In Production' },
   { id: 'internal_review', title: 'Internal QA' },
   { id: 'client_review', title: 'Client Review' },
-  { id: 'approved', title: 'Approved / Done' }
+  { id: 'approved', title: 'Approved' }
 ]
 
 export default function PipelineBoard() {
@@ -27,60 +27,46 @@ export default function PipelineBoard() {
     setLoading(false)
   }
 
-  // --- DRAG AND DROP LOGIC ---
-  const handleDragStart = (e: React.DragEvent, videoId: string) => {
-    e.dataTransfer.setData('videoId', videoId)
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault() // Required to allow dropping
-  }
-
+  const handleDragStart = (e: React.DragEvent, videoId: string) => e.dataTransfer.setData('videoId', videoId)
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault()
+  
   const handleDrop = async (e: React.DragEvent, newStatus: string) => {
     e.preventDefault()
     const videoId = e.dataTransfer.getData('videoId')
     if (!videoId) return
-
-    // Optimistic UI update (feels instant)
     setVideos(prev => prev.map(v => v.id === videoId ? { ...v, status: newStatus } : v))
-
-    // Update Database
     await supabase.from('videos').update({ status: newStatus }).eq('id', videoId)
   }
 
   return (
     <>
       <style>{`
-        .glass-header { background: rgba(10, 10, 15, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 50; }
-        .kanban-board { display: flex; gap: 24px; padding: 32px; overflow-x: auto; min-height: calc(100vh - 65px); align-items: flex-start; }
-        .kanban-col { flex: 0 0 320px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; display: flex; flex-direction: column; max-height: calc(100vh - 100px); }
-        .col-header { padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center; }
-        .col-title { font-family: var(--font-serif); font-size: 16px; font-weight: 700; color: #fff; }
-        .col-count { background: #1a1a22; color: var(--text-muted); padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
-        .task-list { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; flex: 1; }
-        .task-card { background: var(--bg-deep); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; cursor: grab; transition: all 0.2s; position: relative; }
-        .task-card:active { cursor: grabbing; transform: scale(0.98); border-color: var(--accent-gold); }
+        .glass-header { background: rgba(5, 5, 5, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid #1a1a22; position: sticky; top: 0; z-index: 50; }
+        /* FIXED: Changed flex constraints to make columns responsive to screen width */
+        .kanban-board { display: flex; gap: 16px; padding: 32px; height: calc(100vh - 70px); width: 100%; align-items: stretch; }
+        .kanban-col { flex: 1; min-width: 0; background: #0a0a0f; border: 1px solid #1a1a22; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+        .col-header { padding: 16px; border-bottom: 1px solid #1a1a22; display: flex; justify-content: space-between; align-items: center; background: #0f0f0f; }
+        .col-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; color: #fff; }
+        .col-count { background: #1a1a22; color: #888; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+        .task-list { padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+        .task-card { background: #050505; border: 1px solid #1a1a22; border-radius: 8px; padding: 16px; cursor: grab; transition: all 0.2s; }
+        .task-card:active { cursor: grabbing; border-color: #D4AF37; }
         .task-card:hover { border-color: #333; }
-        .client-tag { font-size: 10px; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: inline-block; }
+        .client-tag { font-size: 9px; font-weight: 800; color: #D4AF37; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
       `}</style>
 
-      <div className="glass-header" style={{ height: 64, display: 'flex', alignItems: 'center', padding: '0 32px' }}>
-        <h1 className="serif-heading" style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0 }}>Production Pipeline</h1>
+      <div className="glass-header" style={{ height: 70, display: 'flex', alignItems: 'center', padding: '0 40px' }}>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#fff', margin: 0 }}>Production Pipeline</h1>
       </div>
 
       {loading ? (
-        <div style={{ padding: 40, color: 'var(--text-muted)' }}>Syncing pipeline...</div>
+        <div style={{ padding: 40, color: '#666' }}>Syncing pipeline...</div>
       ) : (
         <div className="kanban-board">
           {COLUMNS.map(col => {
             const colVideos = videos.filter(v => v.status === col.id)
             return (
-              <div 
-                key={col.id} 
-                className="kanban-col"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, col.id)}
-              >
+              <div key={col.id} className="kanban-col" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, col.id)}>
                 <div className="col-header">
                   <div className="col-title">{col.title}</div>
                   <div className="col-count">{colVideos.length}</div>
@@ -88,36 +74,26 @@ export default function PipelineBoard() {
 
                 <div className="task-list">
                   {colVideos.map(video => (
-                    <div 
-                      key={video.id} 
-                      className="task-card"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, video.id)}
-                    >
-                      <div className="client-tag">{video.clients?.name || 'No Client'}</div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12, lineHeight: 1.4 }}>{video.title}</div>
+                    <div key={video.id} className="task-card" draggable onDragStart={(e) => handleDragStart(e, video.id)}>
+                      <div className="client-tag">{video.clients?.name || 'Internal'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12, lineHeight: 1.4 }}>{video.title}</div>
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #1a1a22', paddingTop: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff' }}>
+                          <div style={{ width: 16, height: 16, borderRadius: '4px', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#fff', fontWeight: 800 }}>
                             {video.users?.name?.[0] || '?'}
                           </div>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{video.users?.name?.split(' ')[0] || 'Unassigned'}</span>
+                          <span style={{ fontSize: 10, color: '#666', fontWeight: 600 }}>{video.users?.name?.split(' ')[0] || 'Unassigned'}</span>
                         </div>
                         {video.deadline && (
-                          <span className="mono-data" style={{ fontSize: 10, color: '#666' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#888' }}>
                             {new Date(video.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                           </span>
                         )}
                       </div>
                     </div>
                   ))}
-                  
-                  {colVideos.length === 0 && (
-                    <div style={{ padding: 20, textAlign: 'center', border: '1px dashed #222', borderRadius: 8, color: '#444', fontSize: 12 }}>
-                      Drop items here
-                    </div>
-                  )}
+                  {colVideos.length === 0 && <div style={{ padding: 20, textAlign: 'center', border: '1px dashed #1a1a22', borderRadius: 8, color: '#333', fontSize: 11 }}>Drop items here</div>}
                 </div>
               </div>
             )

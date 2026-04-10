@@ -10,10 +10,19 @@ export default function SidebarProfile() {
 
   useEffect(() => {
     async function fetchUser() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase.from('users').select('name').eq('auth_id', user.id).maybeSingle()
-        setDisplayName(data?.name || user.email?.split('@')[0] || 'User')
+      try {
+        // FIXED: Using getSession() instead of getUser() prevents the "Lock Stolen" race condition
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) throw error
+        const user = session?.user
+
+        if (user) {
+          const { data } = await supabase.from('users').select('name').eq('auth_id', user.id).maybeSingle()
+          setDisplayName(data?.name || user.email?.split('@')[0] || 'User')
+        }
+      } catch (err) {
+        console.warn("Sidebar auth check safely bypassed race condition", err)
       }
     }
     fetchUser()
@@ -32,7 +41,7 @@ export default function SidebarProfile() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #7B61FF 0%, #E84393 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff', textTransform: 'uppercase' }}>
-            {displayName[0]}
+            {displayName[0]?.toUpperCase()}
           </div>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100, textAlign: 'left' }}>
             {displayName}

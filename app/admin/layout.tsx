@@ -7,35 +7,33 @@ import SidebarProfile from '@/components/SidebarProfile'
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
+  // Removed all icons for a minimalist luxury feel
   const navItems = [
-    { name: 'Dashboard', href: '/admin', icon: '📊' },
-    { name: 'Pipeline', href: '/admin/pipeline', icon: '🚀' },
-    { name: 'Performance', href: '/admin/performance', icon: '📈' },
-    { name: 'Needs Review', href: '/admin/reviews', icon: '⭐' },
-    { name: 'Calendar', href: '/admin/calendar', icon: '📅' },
-    { name: 'Editors', href: '/admin/editors', icon: '✂️' },
-    { name: 'Clients', href: '/admin/clients', icon: '👤' },
-    { name: 'Ideas', href: '/admin/ideas', icon: '💡' },
+    { name: 'Dashboard', href: '/admin' },
+    { name: 'Pipeline', href: '/admin/pipeline' },
+    { name: 'Performance', href: '/admin/performance' },
+    { name: 'Needs Review', href: '/admin/reviews' },
+    { name: 'Calendar', href: '/admin/calendar' },
+    { name: 'Editors', href: '/admin/editors' },
+    { name: 'Clients', href: '/admin/clients' },
+    { name: 'Strategy Board', href: '/admin/ideas' },
   ]
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0a0a0f', color: '#fff', margin: 0, padding: 0, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', background: '#050505', color: '#fff', margin: 0, padding: 0, overflow: 'hidden' }}>
       
       {/* Sidebar */}
-      <aside style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #1a1a22', background: '#0a0a0f' }}>
+      <aside style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #1a1a22', background: '#0a0a0f' }}>
         
-        {/* Logo Section */}
-        <div style={{ padding: '32px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #7B61FF 0%, #E84393 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 18 }}>
-              R
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.5px' }}>Agency OS</div>
+        {/* Minimalist Logo Section */}
+        <div style={{ padding: '40px 24px', textAlign: 'left' }}>
+          <div style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 18, letterSpacing: '0.02em', color: '#fff' }}>
+            Agency OS
           </div>
         </div>
 
-        {/* Navigation Links */}
-        <nav style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
+        {/* Minimalist Navigation */}
+        <nav style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
           {navItems.map((item) => {
             const isActive = pathname === item.href
             return (
@@ -43,25 +41,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 key={item.href} 
                 href={item.href} 
                 style={{ 
-                  display: 'flex', alignItems: 'center', padding: '12px 16px', borderRadius: 12, 
-                  background: isActive ? '#1a1a22' : 'transparent', 
+                  display: 'flex', alignItems: 'center', padding: '10px 16px', borderRadius: 8, 
+                  background: isActive ? '#111' : 'transparent', 
                   color: isActive ? '#fff' : '#666', 
-                  textDecoration: 'none', fontWeight: 600, fontSize: 14, transition: 'all 0.2s' 
+                  border: isActive ? '1px solid #222' : '1px solid transparent',
+                  textDecoration: 'none', fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'all 0.2s' 
                 }}
               >
-                <span style={{ marginRight: 12, fontSize: 18 }}>{item.icon}</span>
                 {item.name}
               </Link>
             )
           })}
         </nav>
 
-        {/* Profile Component */}
         <SidebarProfile />
       </aside>
 
-      {/* Main Content */}
-      <main style={{ flex: 1, overflowY: 'auto', background: '#0a0a0f', position: 'relative' }}>
+      <main style={{ flex: 1, overflowY: 'auto', background: '#050505', position: 'relative' }}>
         {children}
       </main>
     </div>

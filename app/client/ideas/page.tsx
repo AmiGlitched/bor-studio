@@ -28,15 +28,20 @@ export default function ContentStrategy() {
   async function generateHormoziScript() {
     if (!rawIdea) return
     setIsGenerating(true)
-    // In production, this calls your /api/generate route
-    setTimeout(() => {
-      setGeneratedScript({
-        hook: "STOP scrolling if you want to scale your brand...",
-        value: "Most people think almond milk is just water and nuts. They're wrong. Here's why...",
-        cta: "Click the link in bio for the clean label revolution."
+    
+    try {
+      const response = await fetch('/api/generate-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea: rawIdea }),
       })
+      const data = await response.json()
+      setGeneratedScript(data)
+    } catch (err) {
+      console.error("Failed to generate script", err)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const startRecording = async () => {

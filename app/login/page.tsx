@@ -1,164 +1,145 @@
 'use client'
-
-import { FormEvent, useEffect, useMemo, useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getUserProfile, routeForRole } from '@/lib/auth'
 
-function LoginForm() {
+export default function LuxuryLogin() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const nextPath = searchParams.get('next')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
-  const warning = useMemo(() => {
-    const currentError = searchParams.get('error')
-    if (currentError === 'unauthorized') return 'This login does not have access to that portal.'
-    return ''
-  }, [searchParams])
-
-  useEffect(() => {
-    async function redirectIfSignedIn() {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session?.user) return
-
-      const profile = await getUserProfile()
-      const fallback = routeForRole(profile?.role, profile?.client_id)
-      router.replace(nextPath || fallback)
-    }
-
-    redirectIfSignedIn()
-  }, [nextPath, router])
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    setError('')
+    setError(null)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (signInError) {
-      setError(signInError.message)
+    if (authError) {
+      setError(authError.message)
       setLoading(false)
       return
     }
 
-    const profile = await getUserProfile()
-    const fallback = routeForRole(profile?.role, profile?.client_id)
-    router.replace(nextPath || fallback)
+    setSuccess(true)
+
+    if (authData.user) {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('client_id')
+        .eq('auth_id', authData.user.id)
+        .single()
+
+      setTimeout(() => {
+        if (profile?.client_id) {
+          router.push('/client') 
+        } else {
+          router.push('/admin') 
+        }
+      }, 1500) 
+    }
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: 400, background: '#fff', border: '1px solid #eee', borderRadius: 16, padding: '36px 28px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', position: 'relative', zIndex: 10 }}>
+    <div style={{ background: '#050505', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
       
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111', margin: 0 }}>Welcome to Wahid Route Portal</h1>
+      {/* Animated Breathing Background Glow */}
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90vw', height: '90vw', background: 'radial-gradient(circle, rgba(212, 175, 55, 0.04) 0%, rgba(0,0,0,0) 60%)', pointerEvents: 'none', zIndex: 0, animation: 'glow-pulse 6s infinite alternate ease-in-out' }} />
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        @keyframes glow-pulse {
+          0% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.9); }
+          100% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        /* FIXED: box-sizing: border-box prevents inputs from spilling out */
+        .luxury-input { box-sizing: border-box; width: 100%; background: #050505; border: 1px solid #222; border-radius: 8px; padding: 16px; color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 14px; outline: none; transition: all 0.3s ease; }
+        .luxury-input:focus { border-color: #D4AF37; box-shadow: 0 0 15px rgba(212, 175, 55, 0.1); }
+        .luxury-label { display: block; font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-bottom: 8px; text-align: left; }
+        .toggle-btn { background: transparent; border: 1px solid #222; color: #aaa; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-top: 8px; align-self: flex-start; }
+        .toggle-btn:hover { color: #D4AF37; border-color: #D4AF37; }
+        .submit-btn { box-sizing: border-box; width: 100%; background: #D4AF37; color: #000; border: none; padding: 18px; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; border-radius: 8px; cursor: pointer; transition: 0.2s; margin-top: 32px; }
+        .submit-btn:hover { background: #e5c048; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(212, 175, 55, 0.15); }
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+      `}</style>
+
+      <div style={{ zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 420, padding: '0 24px' }}>
+        
+        {/* Logo Text Only */}
+        <div style={{ marginBottom: 48, textAlign: 'center' }}>
+          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 32, fontWeight: 600, color: '#fff', letterSpacing: '-0.02em', margin: 0 }}>Realtors Agency OS</h1>
+        </div>
+
+        {/* The Login Card */}
+        <div style={{ width: '100%', background: '#0f0f0f', border: '1px solid rgba(212, 175, 55, 0.2)', borderRadius: 16, padding: '40px 32px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+          
+          {success ? (
+            <div style={{ textAlign: 'center', padding: '20px 0', animation: 'fadeIn 0.5s ease' }}>
+              <div style={{ color: '#00D084', fontSize: 40, marginBottom: 16 }}>✓</div>
+              <h2 style={{ fontFamily: 'Playfair Display, serif', color: '#fff', fontSize: 20, marginBottom: 8 }}>Authentication Successful</h2>
+              <p style={{ color: '#888', fontSize: 13, fontFamily: 'JetBrains Mono, monospace' }}>Redirecting to Command Center...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: '#D4AF37', margin: 0 }}>Access Your Agency OS</h2>
+              </div>
+
+              {error && (
+                <div style={{ background: 'rgba(232, 67, 147, 0.1)', border: '1px solid #E84393', color: '#E84393', padding: 12, borderRadius: 8, fontSize: 12, marginBottom: 24, textAlign: 'center' }}>
+                  {error}
+                </div>
+              )}
+
+              <div style={{ marginBottom: 24, width: '100%' }}>
+                <label className="luxury-label">Email Address</label>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="luxury-input" 
+                  placeholder="name@agency.com"
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                <label className="luxury-label">Password</label>
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="luxury-input" 
+                  placeholder="••••••••••••"
+                  required
+                />
+                
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="toggle-btn"
+                >
+                  {showPassword ? 'Hide Password' : 'Show Password'}
+                </button>
+              </div>
+
+              <button type="submit" disabled={loading} className="submit-btn">
+                {loading ? 'Authenticating...' : 'Log In'}
+              </button>
+            </form>
+          )}
+        </div>
+
       </div>
-
-      {warning && (
-        <div style={{ fontSize: 13, color: '#b45309', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
-          {warning}
-        </div>
-      )}
-
-      {error && (
-        <div style={{ fontSize: 13, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={onSubmit}>
-        <div style={{ marginBottom: 16 }}>
-          <label htmlFor="email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ 
-              width: '100%', 
-              border: '1px solid #111', 
-              borderRadius: 8, 
-              padding: '12px 14px', 
-              fontSize: 14,
-              background: '#222', // Dark background to make light text visible
-              color: '#f8f9fa',   // Light gray/white text color
-              outline: 'none'
-            }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 28 }}>
-          <label htmlFor="password" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 8 }}>Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ 
-              width: '100%', 
-              border: '1px solid #111', 
-              borderRadius: 8, 
-              padding: '12px 14px', 
-              fontSize: 14,
-              background: '#222', // Dark background to make light text visible
-              color: '#f8f9fa',   // Light gray/white text color
-              outline: 'none'
-            }}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ width: '100%', border: 'none', borderRadius: 8, background: '#111', color: '#fff', padding: '12px', fontSize: 15, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, transition: 'background 0.2s' }}
-        >
-          {loading ? 'Signing in...' : 'Sign in'}
-        </button>
-      </form>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <main style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      background: 'linear-gradient(180deg, #020617 0%, #1e3a8a 100%)', // Fading from near-black blue to richer blue
-      fontFamily: 'system-ui, sans-serif', 
-      padding: 20,
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      
-      {/* Large Realtors Branding */}
-      <div style={{ 
-        position: 'absolute', 
-        top: 40, 
-        left: 40, 
-        fontSize: '3rem', 
-        fontWeight: 800, 
-        color: '#fff', 
-        letterSpacing: '-0.02em',
-        zIndex: 5
-      }}>
-        Realtors
-      </div>
-
-      <Suspense fallback={<div style={{ color: '#fff', fontWeight: 500 }}>Loading login...</div>}>
-        <LoginForm />
-      </Suspense>
-    </main>
   )
 }
