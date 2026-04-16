@@ -1,43 +1,47 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 
-export default function NotificationPanel() {
-  const [notifications, setNotifications] = useState<any[]>([])
+// Placeholder for your actual notification fetching logic
+export default function Notifications() {
   const [isOpen, setIsOpen] = useState(false)
-
-  useEffect(() => {
-    loadNotifications()
-    // Subscribe to new notifications
-    const channel = supabase.channel('notifs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, () => {
-      loadNotifications()
-    }).subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
-
-  async function loadNotifications() {
-    const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(10)
-    if (data) setNotifications(data)
-  }
 
   return (
     <div style={{ position: 'relative' }}>
-      <button onClick={() => setIsOpen(!isOpen)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 20 }}>
-        🔔 {notifications.some(n => !n.is_read) && <span style={{ color: '#E84393' }}>•</span>}
+      {/* Notification Bell Button */}
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ background: '#1a1a22', border: '1px solid #333', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600 }}
+      >
+        <span>🔔</span> Notifications
       </button>
 
+      {/* The Dropdown Panel */}
       {isOpen && (
-        <div style={{ position: 'absolute', top: 40, right: 0, width: 300, background: '#111', border: '1px solid #333', borderRadius: 12, zIndex: 100, padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, borderBottom: '1px solid #222', paddingBottom: 8 }}>Activity Alerts</div>
-          {notifications.map(n => (
-            <div key={n.id} style={{ fontSize: 12, padding: '8px 0', borderBottom: '1px solid #222' }}>
-              <div style={{ fontWeight: 600 }}>{n.title}</div>
-              <div style={{ color: '#aaa' }}>{n.message}</div>
-            </div>
-          ))}
-          <button onClick={() => setIsOpen(false)} style={{ width: '100%', marginTop: 12, fontSize: 11, color: '#7B61FF', background: 'none', border: 'none', cursor: 'pointer' }}>Close</button>
+        <div style={{ 
+          position: 'absolute', 
+          top: '120%', 
+          right: 0, 
+          width: 360, 
+          maxHeight: '400px',
+          overflowY: 'auto',
+          background: 'rgba(10, 10, 15, 0.95)', 
+          backdropFilter: 'blur(12px)', 
+          border: '1px solid #1a1a22', 
+          borderRadius: 16, 
+          zIndex: 9999, /* 👈 THIS KEEPS IT ON TOP OF EVERYTHING */
+          boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '16px'
+        }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#D4AF37', borderBottom: '1px solid #1a1a22', paddingBottom: '12px' }}>Recent Activity</h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+             <p style={{ margin: 0, fontSize: '13px', color: '#ccc' }}>No new notifications right now.</p>
+             {/* Map your actual notifications here later */}
+          </div>
         </div>
       )}
     </div>
   )
-}   
+}

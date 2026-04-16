@@ -12,6 +12,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userRole, setUserRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // 🚨 ADD BOTH ADMIN EMAILS HERE 🚨
+  const MASTER_ADMIN_EMAILS = ['admin1@gmail.com', 'admin2@gmail.com']
+
   useEffect(() => {
     async function enforceSecurity() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -21,6 +24,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return
       }
 
+      const userEmail = session.user.email?.toLowerCase() || ''
+
+      // --- MASTER KEY BYPASS (Now checks if email is in the list) ---
+      if (MASTER_ADMIN_EMAILS.map(e => e.toLowerCase()).includes(userEmail)) {
+        setUserRole('admin')
+        setLoading(false)
+        return
+      }
+
+      // Normal database check
       const { data } = await supabase
         .from('users')
         .select('role')
@@ -30,12 +43,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       const role = data?.role || 'editor'
       setUserRole(role)
 
-      // --- THE HARD ROUTE BOUNCER ---
-      // If the user is an editor, completely kick them out to their dedicated portal
       if (role === 'editor') {
-        router.push('/editor')
+        window.location.href = '/editor' 
       } else {
-        // Only let Admins stay and load the layout
         setLoading(false)
       }
     }
@@ -56,16 +66,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         .sidebar-link.inactive:hover { color: #fff; background: rgba(26, 26, 34, 0.5); }
       `}</style>
 
-      {/* Sidebar - Only Admins will ever see this now */}
       <div style={{ width: '260px', borderRight: '1px solid #1a1a22', background: '#0a0a0f', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', zIndex: 100 }}>
-        
         <div>
           <div style={{ padding: '32px 24px' }}>
             <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: '22px', fontWeight: 700, margin: 0, color: '#fff' }}>Agency OS</h1>
           </div>
 
           <nav style={{ padding: '0 16px' }}>
-            <Link href="/admin/dashboard" className={`sidebar-link ${pathname.includes('dashboard') ? 'active' : 'inactive'}`}>Dashboard</Link>
+            {/* Link points to /admin root dashboard */}
+            <Link href="/admin" className={`sidebar-link ${pathname === '/admin' ? 'active' : 'inactive'}`}>Dashboard</Link>
             <Link href="/admin/pipeline" className={`sidebar-link ${pathname.includes('pipeline') ? 'active' : 'inactive'}`}>Pipeline</Link>
             <Link href="/admin/performance" className={`sidebar-link ${pathname.includes('performance') ? 'active' : 'inactive'}`}>Performance</Link>
             <Link href="/admin/reviews" className={`sidebar-link ${pathname.includes('reviews') ? 'active' : 'inactive'}`}>Needs Review</Link>
@@ -74,14 +83,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link href="/admin/clients" className={`sidebar-link ${pathname.includes('clients') ? 'active' : 'inactive'}`}>Clients</Link>
           </nav>
         </div>
-
-        {/* Profile Component */}
         <div style={{ borderTop: '1px solid #1a1a22' }}>
           <SidebarProfile />
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
         {children}
       </div>

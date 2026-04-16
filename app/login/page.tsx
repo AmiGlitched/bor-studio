@@ -1,106 +1,98 @@
 'use client'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 🚨 CHANGE THIS TO YOUR EXACT LOGIN EMAIL 🚨
+  const MASTER_ADMIN_EMAIL = ['divyanshwr@gmail.com', 'mdsfahad97@gmail.com']
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
     try {
-      // 1. Authenticate the user
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) throw authError
 
       if (authData.user) {
-        // 2. Fetch their specific role from the database
-        const { data: userProfile, error: profileError } = await supabase
-          .from('users')
-          .select('role')
-          .eq('auth_id', authData.user.id)
-          .single()
-
-        if (profileError) throw profileError
-
-        // 3. The Smart Router: Hard Navigation to prevent race conditions
-        if (userProfile?.role === 'admin') {
-          window.location.href = '/admin/dashboard'
-        } else if (userProfile?.role === 'editor') {
-          window.location.href = '/editor' // Forces a hard reload to their portal
-        } else if (userProfile?.role === 'client') {
-          window.location.href = '/client'
-        } else {
-          window.location.href = '/dashboard' 
+        if (authData.user.email?.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase()) {
+           window.location.href = '/admin'
+           return
         }
+        const { data: userProfile } = await supabase.from('users').select('role').eq('auth_id', authData.user.id).single()
+        const role = userProfile?.role || 'editor'
+        window.location.href = role === 'admin' ? '/admin' : role === 'editor' ? '/editor' : '/client'
       }
     } catch (err: any) {
-      console.error("Login Error:", err)
       setError(err.message || 'Failed to login')
-      setLoading(false) // Only stop loading if there is an error
+      setLoading(false)
     } 
-    // Notice we removed the finally { setLoading(false) } here. 
-    // If login is successful, we want the button to stay on "Authenticating..." while the hard reload happens!
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050505', padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 400, background: '#0a0a0f', border: '1px solid #1a1a22', borderRadius: 16, padding: 40 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050505', padding: 20, fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ width: '100%', maxWidth: 420, background: '#0a0a0f', border: '1px solid #1a1a22', borderRadius: 24, padding: '48px 40px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
         
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, fontWeight: 700, color: '#fff', margin: '0 0 8px 0' }}>Agency OS</h1>
-          <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Sign in to your workspace</p>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 32, fontWeight: 700, color: '#fff', margin: '0 0 12px 0' }}>Agency OS</h1>
+          <p style={{ fontSize: 14, color: '#666', margin: 0 }}>Enter your credentials to access your workspace</p>
         </div>
 
         {error && (
-          <div style={{ background: 'rgba(232, 67, 147, 0.1)', color: '#E84393', padding: 12, borderRadius: 8, fontSize: 13, marginBottom: 24, border: '1px solid rgba(232, 67, 147, 0.2)', textAlign: 'center' }}>
+          <div style={{ background: 'rgba(232, 67, 147, 0.1)', color: '#E84393', padding: '14px', borderRadius: 12, fontSize: 13, marginBottom: 24, border: '1px solid rgba(232, 67, 147, 0.2)', textAlign: 'center' }}>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Email Address</label>
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email Address</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              style={{ width: '100%', background: '#050505', border: '1px solid #1a1a22', borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 14, outline: 'none' }}
-              placeholder="you@agency.com"
+              style={{ width: '100%', boxSizing: 'border-box', background: '#050505', border: '1px solid #1a1a22', borderRadius: 12, padding: '14px 16px', color: '#fff', fontSize: 15, outline: 'none', transition: 'border-color 0.2s' }}
+              placeholder="name@agency.com"
             />
           </div>
           
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ width: '100%', background: '#050505', border: '1px solid #1a1a22', borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 14, outline: 'none' }}
-              placeholder="••••••••"
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, position: 'relative' }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Password</label>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{ width: '100%', boxSizing: 'border-box', background: '#050505', border: '1px solid #1a1a22', borderRadius: 12, padding: '14px 45px 14px 16px', color: '#fff', fontSize: 15, outline: 'none' }}
+                placeholder="••••••••"
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#444', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button 
             type="submit" 
             disabled={loading}
-            style={{ width: '100%', background: '#D4AF37', color: '#000', border: 'none', padding: '14px', borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: 8 }}
+            style={{ width: '100%', boxSizing: 'border-box', background: '#D4AF37', color: '#000', border: 'none', padding: '16px', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 12, opacity: loading ? 0.7 : 1 }}
           >
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
-
       </div>
     </div>
   )

@@ -1,131 +1,216 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useParams, useRouter } from 'next/navigation'
 
-export default function ClientDashboard() {
-  const [videos, setVideos] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedVideo, setSelectedVideo] = useState<any>(null)
+export default function ReviewRoom() {
+  const params = useParams()
+  const router = useRouter()
+  const taskId = params.id as string
+
+  const [task, setTask] = useState<any>(null)
   const [comments, setComments] = useState<any[]>([])
   const [newComment, setNewComment] = useState('')
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  
+  // AI State
+  const [aiSummary, setAiSummary] = useState<string[] | null>(null)
+  const [generatingAi, setGeneratingAi] = useState(false)
+
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  useEffect(() => { loadData() }, [])
-
-  async function loadData() {
-    setLoading(false)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: profile } = await supabase.from('users').select('client_id').eq('auth_id', user.id).single()
-    
-    if (profile) {
-      const { data } = await supabase.from('videos').select('*').eq('client_id', profile.client_id).order('created_at', { ascending: false })
-      setVideos(data || [])
-    }
-    setLoading(false)
-  }
-
   useEffect(() => {
-    if (selectedVideo) fetchComments(selectedVideo.id)
-  }, [selectedVideo])
+    async function loadData() {
+      // 1. Get logged in user
+      const { data: authData } = await supabase.auth.getUser()
+      if (authData?.user) {
+        const { data: userProfile } = await supabase.from('users').select('*').eq('auth_id', authData.user.id).single()
+        setCurrentUser(userProfile)
+      }
 
-  async function fetchComments(videoId: string) {
-    const { data } = await supabase.from('comments').select('*').eq('video_id', videoId).order('timestamp', { ascending: true })
-    setComments(data || [])
+      // 2. Fetch Task and Video URL
+      const { data: taskData } = await supabase
+        .from('tasks')
+        .select(`*, projects ( name, clients ( name ) )`)
+        .eq('id', taskId)
+        .single()
+      
+      if (taskData) setTask(taskData)
+
+      // 3. Fetch Comments
+      fetchComments()
+      setLoading(false)
+    }
+    loadData()
+  }, [taskId])
+
+  async function fetchComments() {
+    const { data } = await supabase
+      .from('comments')
+      .select(`*, users ( name, role )`)
+      .eq('task_id', taskId)
+      .order('timestamp_seconds', { ascending: true })
+    
+    if (data) setComments(data)
   }
 
-  async function postComment() {
-    if (!newComment.trim() || !videoRef.current) return
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = Math.floor(seconds % 60)
+    return `${m}:${s.toString().padStart(2, '0')}`
+  }
+
+  const handleSeek = (seconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = seconds
+      videoRef.current.play()
+    }
+  }
+
+  const submitComment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newComment.trim() || !currentUser) return
+
+    const currentTime = videoRef.current?.currentTime || 0
+
     await supabase.from('comments').insert({
-      video_id: selectedVideo.id,
-      author_name: 'Client',
-      timestamp: videoRef.current.currentTime,
-      text: newComment
+      task_id: taskId,
+      user_id: currentUser.id,
+      timestamp_seconds: currentTime,
+      content: newComment
     })
-    setNewComment(''); fetchComments(selectedVideo.id)
+
+    setNewComment('')
+    fetchComments()
+    
+    // Auto-pause video when they submit so they can keep reviewing
+    if (videoRef.current) videoRef.current.pause()
   }
 
-  async function updateStatus(status: string) {
-    await supabase.from('videos').update({ status }).eq('id', selectedVideo.id)
-    setSelectedVideo(null); loadData()
+  const generateSummary = async () => {
+    setGeneratingAi(true)
+    try {
+      // Format comments for AI
+      const formattedComments = comments.map(c => ({
+        time: formatTime(c.timestamp_seconds),
+        author: c.users?.name,
+        text: c.content
+      }))
+
+      const response = await fetch('/api/summarize-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comments: formattedComments, taskTitle: task?.title }),
+      })
+      
+      const data = await response.json()
+      if (data.action_plan) setAiSummary(data.action_plan)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setGeneratingAi(false)
+    }
   }
+
+  if (loading) return <div style={{ padding: 40, color: '#D4AF37', background: '#050505', minHeight: '100vh' }}>Loading Review Room...</div>
 
   return (
-    <>
-      <style>{`
-        .glass-header { background: rgba(15, 15, 20, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 50; }
-        .metric-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 16px 24px; position: relative; overflow: hidden; }
-        .video-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 20px; transition: all 0.2s; }
-        .video-card:hover { transform: translateY(-2px); border-color: #7B61FF; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 40px; }
-        .review-grid { background: #000; border: 1px solid var(--border-subtle); border-radius: 20px; width: 100%; max-width: 1100px; display: grid; grid-template-columns: 1fr 320px; height: 80vh; overflow: hidden; }
-      `}</style>
-
-      <div className="glass-header" style={{ padding: '0 32px', height: 60, display: 'flex', alignItems: 'center' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>My Video Assets</div>
-      </div>
-
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 32px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
-          <div className="metric-card">
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Ready to Post</div>
-            <div style={{ fontSize: 32, fontWeight: 700, color: '#00D084' }}>{videos.filter(v => v.status === 'approved').length}</div>
+    <div style={{ display: 'flex', height: '100vh', background: '#050505', color: '#fff' }}>
+      
+      {/* Left Side: Video Player */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid #1a1a22' }}>
+        <div style={{ padding: '24px 32px', borderBottom: '1px solid #1a1a22', background: '#0a0a0f', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 11, color: '#D4AF37', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+              {task?.projects?.clients?.name} • {task?.projects?.name}
+            </div>
+            <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, margin: 0 }}>{task?.title}</h1>
           </div>
-          <div className="metric-card">
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>In Review</div>
-            <div style={{ fontSize: 32, fontWeight: 700, color: '#7B61FF' }}>{videos.filter(v => v.status === 'client_review').length}</div>
-          </div>
-          <div className="metric-card">
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Being Edited</div>
-            <div style={{ fontSize: 32, fontWeight: 700, color: '#E84393' }}>{videos.filter(v => v.status === 'editing').length}</div>
-          </div>
+          <button onClick={() => router.back()} style={{ background: '#1a1a22', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
+            ← Back
+          </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {videos.filter(v => v.video_uploaded).map(v => (
-            <div key={v.id} className="video-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 12, color: '#7B61FF', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{v.type || 'Reel'}</div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: '#fff' }}>{v.title}</div>
+        <div style={{ flex: 1, padding: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+          {task?.file_url ? (
+            <video 
+              ref={videoRef}
+              src={task.file_url} 
+              controls 
+              style={{ width: '100%', maxHeight: '70vh', borderRadius: 12, border: '1px solid #1a1a22', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }} 
+            />
+          ) : (
+            <div style={{ color: '#666', border: '1px dashed #1a1a22', padding: 40, borderRadius: 12 }}>No video asset uploaded yet.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Right Side: Comments & AI Summary */}
+      <div style={{ width: 400, display: 'flex', flexDirection: 'column', background: '#0a0a0f' }}>
+        <div style={{ padding: 24, borderBottom: '1px solid #1a1a22', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Timestamped Feedback</h2>
+          {currentUser?.role !== 'client' && (
+            <button 
+              onClick={generateSummary}
+              disabled={generatingAi || comments.length === 0}
+              style={{ background: 'transparent', color: '#D4AF37', border: '1px solid #D4AF37', padding: '6px 12px', borderRadius: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', cursor: generatingAi ? 'not-allowed' : 'pointer', opacity: (generatingAi || comments.length === 0) ? 0.5 : 1 }}
+            >
+              {generatingAi ? 'Summarizing...' : 'AI Summary'}
+            </button>
+          )}
+        </div>
+
+        {/* AI Summary Banner (Only shows when generated) */}
+        {aiSummary && (
+          <div style={{ background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(0,0,0,0) 100%)', borderBottom: '1px solid rgba(212, 175, 55, 0.2)', padding: 20 }}>
+            <div style={{ fontSize: 10, color: '#D4AF37', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>AI Action Plan</div>
+            <ul style={{ margin: 0, paddingLeft: 16, color: '#fff', fontSize: 13, lineHeight: 1.5 }}>
+              {aiSummary.map((point, i) => (
+                <li key={i} style={{ marginBottom: 8 }}>{point}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Comments List */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {comments.length === 0 ? (
+            <div style={{ color: '#666', fontSize: 13, textAlign: 'center', marginTop: 40 }}>No comments yet. Play the video and add a note.</div>
+          ) : (
+            comments.map(c => (
+              <div key={c.id} style={{ background: '#050505', border: '1px solid #1a1a22', borderRadius: 8, padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: c.users?.role === 'client' ? '#E84393' : '#D4AF37' }}>{c.users?.name}</span>
+                  <button 
+                    onClick={() => handleSeek(c.timestamp_seconds)}
+                    style={{ background: '#1a1a22', color: '#fff', border: 'none', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer' }}
+                  >
+                    {formatTime(c.timestamp_seconds)}
+                  </button>
                 </div>
-                <button onClick={() => setSelectedVideo(v)} style={{ padding: '10px 24px', background: v.status === 'client_review' ? 'var(--primary-gradient)' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
-                  {v.status === 'client_review' ? 'Review & Approve' : 'Watch Video'}
-                </button>
+                <p style={{ margin: 0, fontSize: 13, color: '#ccc', lineHeight: 1.5 }}>{c.content}</p>
               </div>
-            </div>
-          ))}
+            ))
+          )}
+        </div>
+
+        {/* Add Comment Input */}
+        <div style={{ padding: 24, borderTop: '1px solid #1a1a22', background: '#050505' }}>
+          <form onSubmit={submitComment} style={{ display: 'flex', gap: 12 }}>
+            <input
+              type="text"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Add a note at current time..."
+              style={{ flex: 1, background: '#0a0a0f', border: '1px solid #1a1a22', borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 13, outline: 'none' }}
+            />
+            <button type="submit" style={{ background: '#D4AF37', color: '#000', border: 'none', padding: '0 20px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+              Send
+            </button>
+          </form>
         </div>
       </div>
-
-      {selectedVideo && (
-        <div className="modal-overlay">
-          <div className="review-grid">
-            <div style={{ display: 'flex', flexDirection: 'column', background: '#000' }}>
-              <video ref={videoRef} src={selectedVideo.video_url} controls style={{ width: '100%', flex: 1 }} />
-              <div style={{ padding: 20, display: 'flex', gap: 12, background: '#0a0a0f' }}>
-                <button onClick={() => updateStatus('approved')} style={{ flex: 1, background: '#00D084', color: '#fff', border: 'none', padding: 12, borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Approve ✅</button>
-                <button onClick={() => updateStatus('editing')} style={{ flex: 1, background: '#E84393', color: '#fff', border: 'none', padding: 12, borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Request Edits ❌</button>
-                <button onClick={() => setSelectedVideo(null)} style={{ flex: 0.3, background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid #333', padding: 12, borderRadius: 8, cursor: 'pointer' }}>Close</button>
-              </div>
-            </div>
-            <div style={{ borderLeft: '1px solid var(--border-subtle)', background: '#0a0a0f', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: '16px', color: '#fff', fontWeight: 700, borderBottom: '1px solid #333' }}>Timestamps</div>
-              <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-                {comments.map((c, i) => (
-                  <div key={i} style={{ marginBottom: 12, fontSize: 13, color: '#fff' }}>
-                    <span style={{ color: '#7B61FF', fontWeight: 700 }}>{Math.floor(c.timestamp)}s:</span> {c.text}
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: 16, borderTop: '1px solid #333' }}>
-                <textarea value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Type feedback..." style={{ width: '100%', background: '#111', color: '#fff', border: '1px solid #333', borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 13 }} />
-                <button onClick={postComment} style={{ width: '100%', padding: 10, background: '#7B61FF', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Post Feedback</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   )
 }
