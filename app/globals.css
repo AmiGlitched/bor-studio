@@ -31,3 +31,7 @@ body {
 h1, h2, h3, h4, h5, h6, .playfair {
   font-family: 'Playfair Display', serif;
 }
+/* THE FONT NUKE: Force the ultra-smooth native system font everywhere */
+*, *::before, *::after, body, input, button, select, textarea, h1, h2, h3, h4, h5, h6 {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol" !important;
+}
